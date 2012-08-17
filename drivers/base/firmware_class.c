@@ -1363,7 +1363,9 @@ static int fw_pm_notify(struct notifier_block *notify_block,
 #else
 static int fw_pm_notify(struct notifier_block *notify_block,
 			unsigned long mode, void *unused)
-{}
+{
+	return 0;
+}
 #endif
 
 static void __init fw_cache_init(void)
