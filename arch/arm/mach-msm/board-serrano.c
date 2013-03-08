@@ -26,10 +26,7 @@
 #include <linux/spi/spi.h>
 #include <linux/slimbus/slimbus.h>
 #include <linux/bootmem.h>
-#ifdef CONFIG_ANDROID_PMEM
-#include <linux/android_pmem.h>
-#endif
-#include <linux/vibrator.h>
+#include <linux/vibrator_msm8930.h>
 #include <linux/dma-contiguous.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_data/qcom_crypto_device.h>
@@ -250,9 +247,9 @@ struct sx150x_platform_data msm8930_sx150x_data[] = {
 #define HOLE_SIZE	0x20000
 #define MSM_CONTIG_MEM_SIZE  0x65000
 #ifdef CONFIG_MSM_IOMMU
-#define MSM_ION_MM_SIZE            0x5C00000 /* 56MB(0x3800000) -> 88MB */
+#define MSM_ION_MM_SIZE            0x5C00000 /* Need to be multiple of 64K */
 #define MSM_ION_SF_SIZE            0x0
-#define MSM_ION_QSECOM_SIZE	0x1700000 /* 7.5MB(0x780000) -> 23MB */
+#define MSM_ION_QSECOM_SIZE        0x780000 /* (7.5MB) */
 #define MSM_ION_HEAP_NUM	8
 #else
 #define MSM_ION_SF_SIZE		MSM_PMEM_SIZE
@@ -471,6 +468,7 @@ static void tsu6721_callback(enum cable_type_t cable_type, int attached)
 	case CABLE_TYPE_OTG:
 		pr_info("%s OTG is %s\n",
 			__func__, attached ? "attached" : "detached");
+		sec_otg_set_id_state(attached);
 		return;
 	case CABLE_TYPE_AUDIO_DOCK:
 		pr_info("%s Audiodock is %s\n",
@@ -858,15 +856,6 @@ enum {
 static void sensor_power_on_vdd(int, int);
 #endif
 
-#if defined(CONFIG_INPUT_YAS_SENSORS)
-/*
-static void sensors_regulator_on(bool onoff)
-{
-	int flag = onoff ? 1 : 0;
-	sensor_power_on_vdd(flag, flag);
-}
-*/
-
 #ifdef CONFIG_MSM_ACTUATOR	/* For Camera Actuator By Teddy */
 	static struct i2c_gpio_platform_data actuator_i2c_gpio_data = {
 		.sda_pin = GPIO_I2C_DATA_AF,
@@ -882,6 +871,15 @@ static void sensors_regulator_on(bool onoff)
 		},
 	};
 #endif
+
+#if defined(CONFIG_INPUT_YAS_SENSORS)
+/*
+static void sensors_regulator_on(bool onoff)
+{
+	int flag = onoff ? 1 : 0;
+	sensor_power_on_vdd(flag, flag);
+}
+*/
 
 #if defined(CONFIG_INPUT_MPU6050) || defined(CONFIG_INPUT_MPU6500)
 static struct mpu6k_input_platform_data mpu6k_pdata = {
@@ -1275,8 +1273,6 @@ static struct bcm2079x_platform_data bcm2079x_i2c_pdata = {
 	.irq_gpio = GPIO_NFC_IRQ,
 	.en_gpio = GPIO_NFC_EN,
 	.wake_gpio = GPIO_NFC_FIRMWARE,
-	.clk_req_gpio = GPIO_NFC_CLK_REQ,
-	.clk_req_irq = MSM_GPIO_TO_INT(GPIO_NFC_CLK_REQ),
 };
 
 static struct i2c_board_info nfc_bcm2079x_info[] __initdata = {
@@ -1304,76 +1300,6 @@ static void samsung_sys_class_init(void)
 
 	pr_info("samsung sys class end.\n");
 };
-
-#ifdef CONFIG_ANDROID_PMEM
-static unsigned pmem_size = MSM_PMEM_SIZE;
-static int __init pmem_size_setup(char *p)
-{
-	pmem_size = memparse(p, NULL);
-	return 0;
-}
-early_param("pmem_size", pmem_size_setup);
-
-static unsigned pmem_adsp_size = MSM_PMEM_ADSP_SIZE;
-
-static int __init pmem_adsp_size_setup(char *p)
-{
-	pmem_adsp_size = memparse(p, NULL);
-	return 0;
-}
-early_param("pmem_adsp_size", pmem_adsp_size_setup);
-
-static unsigned pmem_audio_size = MSM_PMEM_AUDIO_SIZE;
-
-static int __init pmem_audio_size_setup(char *p)
-{
-	pmem_audio_size = memparse(p, NULL);
-	return 0;
-}
-early_param("pmem_audio_size", pmem_audio_size_setup);
-#endif
-
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-static struct android_pmem_platform_data android_pmem_pdata = {
-	.name = "pmem",
-	.allocator_type = PMEM_ALLOCATORTYPE_ALLORNOTHING,
-	.cached = 1,
-	.memory_type = MEMTYPE_EBI1,
-};
-
-static struct platform_device msm8930_android_pmem_device = {
-	.name = "android_pmem",
-	.id = 0,
-	.dev = {.platform_data = &android_pmem_pdata},
-};
-
-static struct android_pmem_platform_data android_pmem_adsp_pdata = {
-	.name = "pmem_adsp",
-	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
-	.cached = 0,
-	.memory_type = MEMTYPE_EBI1,
-};
-static struct platform_device msm8930_android_pmem_adsp_device = {
-	.name = "android_pmem",
-	.id = 2,
-	.dev = { .platform_data = &android_pmem_adsp_pdata },
-};
-
-static struct android_pmem_platform_data android_pmem_audio_pdata = {
-	.name = "pmem_audio",
-	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
-	.cached = 0,
-	.memory_type = MEMTYPE_EBI1,
-};
-
-static struct platform_device msm8930_android_pmem_audio_device = {
-	.name = "android_pmem",
-	.id = 4,
-	.dev = { .platform_data = &android_pmem_audio_pdata },
-};
-#endif /* CONFIG_MSM_MULTIMEDIA_USE_ION */
-#endif /* CONFIG_ANDROID_PMEM */
 
 struct fmem_platform_data msm8930_fmem_pdata = {
 };
@@ -1415,38 +1341,6 @@ static void __init reserve_rtb_memory(void)
 #if defined(CONFIG_MSM_RTB)
 	msm8930_reserve_table[MEMTYPE_EBI1].size += msm8930_rtb_pdata.size;
 #endif
-}
-
-static void __init size_pmem_devices(void)
-{
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-	android_pmem_adsp_pdata.size = pmem_adsp_size;
-	android_pmem_pdata.size = pmem_size;
-	android_pmem_audio_pdata.size = MSM_PMEM_AUDIO_SIZE;
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-#endif /*CONFIG_ANDROID_PMEM*/
-}
-
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-static void __init reserve_memory_for(struct android_pmem_platform_data *p)
-{
-	msm8930_reserve_table[p->memory_type].size += p->size;
-}
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-#endif /*CONFIG_ANDROID_PMEM*/
-
-static void __init reserve_pmem_memory(void)
-{
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-	reserve_memory_for(&android_pmem_adsp_pdata);
-	reserve_memory_for(&android_pmem_pdata);
-	reserve_memory_for(&android_pmem_audio_pdata);
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-	msm8930_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
-#endif /*CONFIG_ANDROID_PMEM*/
 }
 
 static int msm8930_paddr_to_memtype(unsigned int paddr)
@@ -1881,12 +1775,11 @@ static void __init reserve_cache_dump_memory(void) { }
 
 static void __init msm8930_calculate_reserve_sizes(void)
 {
-	size_pmem_devices();
-	reserve_pmem_memory();
 	reserve_ion_memory();
 	reserve_mdp_memory();
 	reserve_rtb_memory();
 	reserve_cache_dump_memory();
+	msm8930_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
 }
 
 static struct reserve_info msm8930_reserve_info __initdata = {
@@ -1931,11 +1824,7 @@ static struct wcd9xxx_pdata tapan_i2c_platform_data = {
 	.irq_base = TAPAN_INTERRUPT_BASE,
 	.num_irqs = NR_WCD9XXX_IRQS,
 	.reset_gpio = GPIO_CODEC_RESET,
-#if defined(CONFIG_MACH_SERRANO_VZW)
-	.mclk_rate = 12288000,
-#else
 	.mclk_rate = 9600000,
-#endif
 	.micbias = {
 		.ldoh_v = WCD9XXX_LDOH_3P0_V,
 		.cfilt1_mv = 1800,
@@ -2156,7 +2045,6 @@ static struct slim_boardinfo msm_slim_devices[] = {
 #define TAPAN_ANALOG_I2C_SLAVE_ADDR	0x77
 #define TAPAN_DIGITAL1_I2C_SLAVE_ADDR	0x66
 #define TAPAN_DIGITAL2_I2C_SLAVE_ADDR	0x55
-
 static struct i2c_board_info tapan_device_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("wcd9xxx top level", TAPAN_I2C_SLAVE_ADDR),
@@ -2178,7 +2066,6 @@ static struct i2c_board_info tapan_device_info[] __initdata = {
 	},
 };
 #endif
-
 #define MSM_WCNSS_PHYS	0x03000000
 #define MSM_WCNSS_SIZE	0x280000
 
@@ -2798,7 +2685,7 @@ static int hsusb_phy_init_seq[] = {
 #define MSM_MPM_PIN_USB1_OTGSESSVLD	40
 
 static struct msm_otg_platform_data msm_otg_pdata = {
-	.mode			= USB_PERIPHERAL,
+	.mode			= USB_OTG,
 	.otg_control		= OTG_PMIC_CONTROL,
 	.phy_type		= SNPS_28NM_INTEGRATED_PHY,
 	.pmic_id_irq		= PM8038_USB_ID_IN_IRQ(PM8038_IRQ_BASE),
@@ -2913,7 +2800,6 @@ static uint8_t spm_power_collapse_with_rpm[] __initdata = {
 	0x24, 0x30, 0x0f,
 };
 
-
 static uint8_t spm_power_collapse_without_rpm_krait_v3[] __initdata = {
 	0x00, 0x30, 0x24, 0x30,
 	0x54, 0x10, 0x09, 0x03,
@@ -2928,7 +2814,6 @@ static uint8_t spm_power_collapse_with_rpm_krait_v3[] __initdata = {
 	0x30, 0x0C, 0x24, 0x30,
 	0x0f,
 };
-
 static struct msm_spm_seq_entry msm_spm_boot_cpu_seq_list[] __initdata = {
 	[0] = {
 		.mode = MSM_SPM_MODE_CLOCK_GATING,
@@ -3080,7 +2965,6 @@ static struct i2c_board_info sii_device_info[] __initdata = {
 };
 #endif /*CONFIG_FB_MSM_HDMI_MHL_8334*/
 
-#ifdef MSM8930_PHASE_2
 
 #ifdef CONFIG_KEYBOARD_GPIO
 static struct gpio_keys_button gpio_keys_button[] = {
@@ -3131,13 +3015,14 @@ static struct gpio_keys_platform_data gpio_keys_platform_data = {
 };
 
 static struct platform_device msm8960_gpio_keys_device = {
-	.name	= "sec_keys",
+	.name	= "gpio-keys",
 	.id	= -1,
 	.dev	= {
 		.platform_data	= &gpio_keys_platform_data,
 	}
 };
 #endif
+#ifdef MSM8930_PHASE_2
 #ifdef CONFIG_2MIC_ES305
 static int a2220_hw_init(void)
 {
@@ -3490,7 +3375,7 @@ static struct platform_device msm_tsens_device = {
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 9,
 	.poll_ms = 250,
-	.limit_temp_degC = 60,
+	.limit_temp_degC = 70,
 	.temp_hysteresis_degC = 10,
 	.freq_step = 2,
 };
@@ -3560,25 +3445,25 @@ static struct platform_device msm8930_device_rpm_regulator __devinitdata = {
 static struct sec_jack_zone jack_zones[] = {
 	[0] = {
 		.adc_high	= 3,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[1] = {
 		.adc_high	= 990,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
 		.adc_high	= 1720,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
 	[3] = {
 		.adc_high	= 9999,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
@@ -3606,25 +3491,25 @@ static struct sec_jack_buttons_zone jack_buttons_zones[] = {
 static struct sec_jack_zone jack_zones_rev03[] = {
 	[0] = {
 		.adc_high	= 3,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[1] = {
 		.adc_high	= 580,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
 		.adc_high	= 1720,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
 	[3] = {
 		.adc_high	= 9999,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
@@ -3652,25 +3537,25 @@ static struct sec_jack_buttons_zone jack_buttons_zones_rev03[] = {
 static struct sec_jack_zone jack_zones[] = {
 	[0] = {
 		.adc_high	= 0,
-		.delay_ms	= 20,
+		.delay_us	= 20000,
 		.check_count	= 20,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[1] = {
 		.adc_high	= 600,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
 		.adc_high	= 1745,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
 	[3] = {
 		.adc_high	= 9999,
-		.delay_ms	= 20,
+		.delay_us	= 20000,
 		.check_count	= 20,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
@@ -3698,25 +3583,25 @@ static struct sec_jack_buttons_zone jack_buttons_zones[] = {
 static struct sec_jack_zone jack_zones[] = {
 	[0] = {
 		.adc_high	= 3,
-		.delay_ms	= 20,
+		.delay_us	= 20000,
 		.check_count	= 20,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[1] = {
 		.adc_high	= 685,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
 	[2] = {
 		.adc_high	= 1745,
-		.delay_ms	= 10,
+		.delay_us	= 10000,
 		.check_count	= 10,
 		.jack_type	= SEC_HEADSET_4POLE,
 	},
 	[3] = {
 		.adc_high	= 9999,
-		.delay_ms	= 20,
+		.delay_us	= 20000,
 		.check_count	= 20,
 		.jack_type	= SEC_HEADSET_3POLE,
 	},
@@ -3752,7 +3637,7 @@ static int get_sec_gnd_jack_state(void)
 
 	return status^1;
 }
-#endif
+
 
 static int get_sec_det_jack_state(void)
 {
@@ -3763,7 +3648,7 @@ static int get_sec_det_jack_state(void)
 
 	return status^1;
 }
-
+#endif
 static int get_sec_send_key_state(void)
 {
 	int status = 0;
@@ -3775,7 +3660,7 @@ static int get_sec_send_key_state(void)
 }
 
 /* extern void msm8930_enable_codec_internal_micbias(bool state); */
-
+   extern void msm8930_enable_ear_micbias(bool state);
 static void set_sec_micbias_state(bool state)
 {
 
@@ -3809,7 +3694,9 @@ static int sec_jack_get_adc_value(void)
 }
 
 static struct sec_jack_platform_data sec_jack_data = {
-	.get_det_jack_state	= get_sec_det_jack_state,
+#if defined(CONFIG_SAMSUNG_JACK_GNDLDET)
+	.get_l_jack_state	= get_sec_det_jack_state,
+#endif
 	.get_send_key_state	= get_sec_send_key_state,
 	.set_micbias_state	= set_sec_micbias_state,
 	.get_adc_value		= sec_jack_get_adc_value,
@@ -3823,8 +3710,8 @@ static struct sec_jack_platform_data sec_jack_data = {
 	.buttons_zones_rev03		= jack_buttons_zones_rev03,
 #endif
 	.num_buttons_zones	= ARRAY_SIZE(jack_buttons_zones),
-	.det_int		= MSM_GPIO_TO_INT(GPIO_EAR_DET),
-	.send_int		= MSM_GPIO_TO_INT(GPIO_SHORT_SENDEND),
+	.det_gpio		= GPIO_EAR_DET,
+	.send_end_gpio		= GPIO_SHORT_SENDEND,
 #if defined(CONFIG_SAMSUNG_JACK_GNDLDET)
 	.get_gnd_jack_state	= get_sec_gnd_jack_state,
 #endif
@@ -3916,13 +3803,6 @@ static struct platform_device *common_devices[] __initdata = {
 #ifdef CONFIG_MSM_FAKE_BATTERY
 	&fish_battery_device,
 #endif
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-	&msm8930_android_pmem_device,
-	&msm8930_android_pmem_adsp_device,
-	&msm8930_android_pmem_audio_device,
-#endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
-#endif /*CONFIG_ANDROID_PMEM*/
 	&msm8930_fmem_device,
 	&msm_device_bam_dmux,
 	&msm_fm_platform_init,
@@ -4377,7 +4257,8 @@ static struct i2c_registry msm8930_sns_i2c_devices_rev00[] __initdata = {
 #endif
 };
 
-#if defined(CONFIG_MACH_SERRANO_ATT) || defined(CONFIG_MACH_SERRANO_EUR_LTE) \
+#if defined(CONFIG_MACH_SERRANO_ATT) \
+		|| defined(CONFIG_MACH_SERRANO_EUR_LTE) \
 		|| defined(CONFIG_MACH_SERRANO_EUR_3G) \
 		|| defined(CONFIG_MACH_SERRANO_VZW) \
 		|| defined(CONFIG_MACH_SERRANO_USC) \
@@ -4415,7 +4296,8 @@ static void __init register_i2c_devices(void)
 						msm8930_i2c_devices[i].len);
 	}
 
-#if defined(CONFIG_MACH_SERRANO_EUR_LTE) || defined(CONFIG_MACH_SERRANO_EUR_3G) || defined(CONFIG_MACH_SERRANO_KOR_LTE)
+#if defined(CONFIG_MACH_SERRANO_EUR_LTE) \
+	|| defined(CONFIG_MACH_SERRANO_EUR_3G) || defined(CONFIG_MACH_SERRANO_KOR_LTE)
 	if (system_rev <= BOARD_REV01) {
 		i2c_register_board_info(msm8930_sns_i2c_devices_rev00[0].bus,
 					msm8930_sns_i2c_devices_rev00[0].info,
@@ -4587,7 +4469,6 @@ static void __init msm8930_pm8917_pdata_fixup(void)
 	pdata->uses_pm8917 = true;
 }
 
-
 static void __init msm8930ab_update_krait_spm(void)
 {
 	int i;
@@ -4705,7 +4586,6 @@ void __init msm8930_serrano_init(void)
 #endif
 	msm8930_i2c_init();
 	msm8930_init_gpu();
-
 	if (cpu_is_msm8930ab())
 		msm8930ab_update_krait_spm();
 
@@ -4791,7 +4671,7 @@ void __init msm8930_serrano_init(void)
 	if (PLATFORM_IS_CHARM25())
 		platform_add_devices(mdm_devices, ARRAY_SIZE(mdm_devices));
 #if 0
-	ion_adjust_secure_allocation();	
+	ion_adjust_secure_allocation();
 #endif
 
 #ifdef CONFIG_SENSORS_HALL
@@ -4800,13 +4680,13 @@ void __init msm8930_serrano_init(void)
 #if defined(CONFIG_KEYBOARD_TC360_TOUCHKEY) || defined(CONFIG_KEYBOARD_CYPRESS_TOUCH)
 #ifdef CONFIG_SAMSUNG_LPM_MODE
 	if (!poweroff_charging)
-#endif	
+#endif
 		input_touchkey_init();
 #endif
 #if defined(CONFIG_TOUCHSCREEN_MXTS)
 #ifdef CONFIG_SAMSUNG_LPM_MODE
 	if (!poweroff_charging)
-#endif		
+#endif
 		input_touchscreen_init();
 
 #ifdef CONFIG_MFD_MAX77693
