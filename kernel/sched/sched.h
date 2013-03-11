@@ -577,6 +577,11 @@ static inline bool task_notify_on_migrate(struct task_struct *p)
 	return task_group(p)->notify_on_migrate;
 }
 
+static inline bool task_notify_on_migrate(struct task_struct *p)
+{
+	return task_group(p)->notify_on_migrate;
+}
+
 /* Change a task's cfs_rq and parent entity if it moves across CPUs/groups */
 static inline void set_task_rq(struct task_struct *p, unsigned int cpu)
 {
