@@ -21,6 +21,8 @@
 #include <linux/idr.h>
 #include <linux/err.h>
 #include <linux/vmalloc.h>
+#include <linux/idr.h>
+#include <linux/err.h>
 #include <asm/sizes.h>
 #include <asm/page.h>
 #include <mach/iommu.h>
