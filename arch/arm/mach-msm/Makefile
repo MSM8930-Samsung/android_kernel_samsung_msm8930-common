@@ -462,7 +462,15 @@ ifdef CONFIG_MSM_CPR
 obj-$(CONFIG_DEBUG_FS) += msm_cpr-debug.o
 endif
 obj-$(CONFIG_MSM_CPU_PWRCTL) +=  msm_cpu_pwrctl.o
+
 obj-$(CONFIG_BT_BCM4334) += board-bluetooth-bcm4334.o
+
+
+obj-$(CONFIG_HAS_MACH_MEMUTILS) += memutils/
+obj-$(CONFIG_ARCH_RANDOM) += early_random.o
+
+obj-$(CONFIG_CPU_FREQ_MSM) += cpufreq.o
+
 ifdef CONFIG_SEC_THERMISTOR
 obj-$(CONFIG_SEC_THERMISTOR) += sec_thermistor.o msm8930-thermistor.o
 endif
