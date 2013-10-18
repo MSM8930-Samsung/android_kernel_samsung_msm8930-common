@@ -324,3 +324,10 @@ config FTM_SLEEP
 	help
 	  Enable support disable interupt of micro USB IC and disable wakelock in factory test mode devices.  This is used
 	  in a production line environment.
+
+config SPEEDUP_KEYRESUME
+	bool "Speed up late resume"
+	depends on SUSPEND
+	default y
+	---help---
+	  Speed up system resume
