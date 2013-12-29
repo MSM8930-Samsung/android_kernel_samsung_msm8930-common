@@ -468,3 +468,4 @@ obj-$(CONFIG_SEC_THERMISTOR) += sec_thermistor.o msm8930-thermistor.o
 endif
 obj-$(CONFIG_ARCH_RANDOM) += early_random.o
 obj-$(CONFIG_CPU_FREQ_MSM) += cpufreq.o
+obj-y += fastchg.o
