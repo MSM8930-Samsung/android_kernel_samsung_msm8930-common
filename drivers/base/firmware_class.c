@@ -628,28 +628,20 @@ static ssize_t firmware_loading_store(struct device *dev,
 		set_bit(FW_STATUS_LOADING, &fw_priv->status);
 		break;
 	case 0:
-		if (test_bit(FW_STATUS_LOADING, &fw_priv->status)) {
-			if (fw_priv->dest_addr) {
-				complete(&fw_priv->completion);
-				clear_bit(FW_STATUS_LOADING, &fw_priv->status);
-				break;
-			}
-			vunmap(fw_priv->fw->data);
-			fw_priv->fw->data = vmap(fw_priv->pages,
-						 fw_priv->nr_pages,
-						 0, PAGE_KERNEL_RO);
-			if (!fw_priv->fw->data) {
-				dev_err(dev, "%s: vmap() failed\n", __func__);
-				goto err;
-			}
-			/* Pages are now owned by 'struct firmware' */
-			fw_priv->fw->pages = fw_priv->pages;
-			fw_priv->pages = NULL;
+		if (test_bit(FW_STATUS_LOADING, &fw_buf->status)) {
+			set_bit(FW_STATUS_DONE, &fw_buf->status);
+			clear_bit(FW_STATUS_LOADING, &fw_buf->status);
 
-			fw_priv->page_array_size = 0;
-			fw_priv->nr_pages = 0;
-			complete(&fw_priv->completion);
-			clear_bit(FW_STATUS_LOADING, &fw_priv->status);
+			/*
+			 * Several loading requests may be pending on
+			 * one same firmware buf, so let all requests
+			 * see the mapped 'buf->data' once the loading
+			 * is completed.
+			 * */
+			if (fw_map_pages_buf(fw_buf))
+				dev_err(dev, "%s: map pages failed\n",
+					__func__);
+			complete_all(&fw_buf->completion);
 			break;
 		}
 		/* fallthrough */
@@ -1029,6 +1021,9 @@ static int _request_firmware_load(struct firmware_priv *fw_priv, bool uevent,
 	wait_for_completion(&buf->completion);
 
 	cancel_delayed_work_sync(&fw_priv->timeout_work);
+
+	if (!buf->data && buf->is_paged_buf)
+		retval = -ENOMEM;
 
 	device_remove_file(f_dev, &dev_attr_loading);
 err_del_bin_attr:
