@@ -353,8 +353,11 @@ CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
 CFLAGS_MODULE   =
 AFLAGS_MODULE   =
-LDFLAGS_MODULE  =
+LDFLAGS_MODULE  =  -flto
 CFLAGS_KERNEL	=
+ifdef CONFIG_CC_LINK_TIME_OPTIMIZATION
+CFLAGS_KERNEL	+= -flto -fno-toplevel-reorder -fuse-linker-plugin
+endif
 ifdef CONFIG_CC_GRAPHITE_OPTIMIZATION
 CFLAGS_KERNEL += -fgraphite-identity -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
 endif
@@ -573,6 +576,9 @@ endif
 
 ifdef CONFIG_CC_GRAPHITE_OPTIMIZATION
 KBUILD_CFLAGS += -fgraphite-identity -floop-parallelize-all -ftree-loop-linear -floop-interchange -floop-strip-mine -floop-block
+endif
+ifdef CONFIG_CC_LINK_TIME_OPTIMIZATION
+KBUILD_CFLAGS	+= -flto -fno-toplevel-reorder -fuse-linker-plugin
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
