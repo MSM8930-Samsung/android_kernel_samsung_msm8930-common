@@ -114,7 +114,7 @@
 #endif
 
 #ifdef CONFIG_NFC_PN547
-#include <linux/pn544.h>
+#include <linux/pn547.h>
 #endif
 
 #ifdef CONFIG_MFD_MAX77693
