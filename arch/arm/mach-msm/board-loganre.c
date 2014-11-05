@@ -405,18 +405,20 @@ static struct platform_device pn547_i2c_gpio_device = {
 	},
 };
 
-static struct pn544_i2c_platform_data pn547_pdata = {
+static struct pn547_i2c_platform_data pn547_pdata = {
 	.conf_gpio = pn547_conf_gpio,
 	.irq_gpio = GPIO_NFC_IRQ,
 	.ven_gpio = GPIO_NFC_EN,
 	.firm_gpio = GPIO_NFC_FIRMWARE,
+#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	.clk_req_gpio = GPIO_NFC_CLK_REQ,
 	.clk_req_irq = MSM_GPIO_TO_INT(GPIO_NFC_CLK_REQ),
+#endif
 };
 
 static struct i2c_board_info pn547_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("pn544", 0x2b),
+		I2C_BOARD_INFO("pn547", 0x2b),
 		.irq = MSM_GPIO_TO_INT(GPIO_NFC_IRQ),
 		.platform_data = &pn547_pdata,
 	},
