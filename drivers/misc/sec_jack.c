@@ -320,7 +320,7 @@ static ssize_t  key_state_onoff_show(struct device *dev,
 		value = 0;
 	else
 		value = 1;
-	return snprintf(buf, sizeof(buf), "%d\n", value);
+	return sprintf(buf, "%d\n", value);
 }
 
 static DEVICE_ATTR(key_state, 0664 , key_state_onoff_show,
@@ -337,7 +337,7 @@ static ssize_t  earjack_state_onoff_show(struct device *dev,
 		value = 1;
 	else
 		value = 0;
-	return snprintf(buf, sizeof(buf), "%d\n", value);
+	return sprintf(buf, "%d\n", value);
 }
 
 static DEVICE_ATTR(state, 0664 , earjack_state_onoff_show,
