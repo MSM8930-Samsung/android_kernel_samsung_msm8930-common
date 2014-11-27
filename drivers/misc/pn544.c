@@ -34,7 +34,7 @@
 #include <linux/gpio.h>
 #include <linux/miscdevice.h>
 #include <linux/spinlock.h>
-#include <linux/pn544.h>
+#include <linux/nfc/pn544.h>
 #include <linux/wakelock.h>
 
 #ifdef CONFIG_NFC_PN547
