@@ -31,8 +31,6 @@ struct pn544_i2c_platform_data {
 	unsigned int irq_gpio;
 	unsigned int ven_gpio;
 	unsigned int firm_gpio;
-#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	unsigned int clk_req_gpio;
 	unsigned int clk_req_irq;
-#endif
 };
