@@ -153,6 +153,10 @@ static struct l2_level l2_freq_tbl[] __initdata = {
 };
 
 static struct acpu_level acpu_freq_tbl_slow[] __initdata = {
+#ifdef CONFIG_CPU_UNDERCLOCK
+	{ 1, {   162000, HFPLL, 2, 0x0C }, L2(0),   925000 },
+	{ 1, {   270000, HFPLL, 2, 0x14 }, L2(0),   925000 },
+#endif
 	{ 1, {   384000, PLL_8, 0, 0x00 }, L2(0),   950000 },
 	{ 0, {   432000, HFPLL, 2, 0x20 }, L2(5),   975000 },
 	{ 1, {   486000, HFPLL, 2, 0x24 }, L2(5),   975000 },
@@ -173,6 +177,10 @@ static struct acpu_level acpu_freq_tbl_slow[] __initdata = {
 };
 
 static struct acpu_level acpu_freq_tbl_nom[] __initdata = {
+#ifdef CONFIG_CPU_UNDERCLOCK
+	{ 1, {   162000, HFPLL, 2, 0x0C }, L2(0),   925000 },
+	{ 1, {   270000, HFPLL, 2, 0x14 }, L2(0),   925000 },
+#endif
 	{ 1, {   384000, PLL_8, 0, 0x00 }, L2(0),   925000 },
 	{ 0, {   432000, HFPLL, 2, 0x20 }, L2(5),   950000 },
 	{ 1, {   486000, HFPLL, 2, 0x24 }, L2(5),   950000 },
@@ -193,6 +201,10 @@ static struct acpu_level acpu_freq_tbl_nom[] __initdata = {
 };
 
 static struct acpu_level acpu_freq_tbl_fast[] __initdata = {
+#ifdef CONFIG_CPU_UNDERCLOCK
+	{ 1, {   162000, HFPLL, 2, 0x0C }, L2(0),   925000 },
+	{ 1, {   270000, HFPLL, 2, 0x14 }, L2(0),   925000 },
+#endif
 	{ 1, {   384000, PLL_8, 0, 0x00 }, L2(0),   900000 },
 	{ 0, {   432000, HFPLL, 2, 0x20 }, L2(5),   900000 },
 	{ 1, {   486000, HFPLL, 2, 0x24 }, L2(5),   900000 },

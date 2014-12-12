@@ -2001,6 +2001,12 @@ config MSM_CPU_FREQ_MIN
 
 endif # CPU_FREQ_MSM
 
+config CPU_UNDERCLOCK
+	bool "Enable extra low CPU clocks"
+	default n
+	help
+	  Extra low cpu frequencies enabled for CPU
+
 config MSM_AVS_HW
 	bool "Enable Adaptive Voltage Scaling (AVS)"
 	default n
