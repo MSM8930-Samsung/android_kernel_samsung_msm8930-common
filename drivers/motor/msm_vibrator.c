@@ -37,8 +37,6 @@
 #define VIBE_S_SUCCESS			0	/*!< Success */
 #define VIBE_E_FAIL				-4	/*!< Generic error */
 
-static struct work_struct work_vibrator_on;
-static struct work_struct work_vibrator_off;
 static struct hrtimer vibe_timer;
 struct vibrator_platform_data_motor vibrator_drvdata;
 
@@ -81,28 +79,18 @@ static int msm_vibrator_exit(struct platform_device *pdev)
 
 	return VIBE_S_SUCCESS;
 }
-static void msm_vibrator_on(struct work_struct *work)
-{
-	vibrator_drvdata.power_onoff(1);
-}
 
-static void msm_vibrator_off(struct work_struct *work)
-{
-	vibrator_drvdata.power_onoff(0);
-}
 
 static void timed_vibrator_on(struct timed_output_dev *sdev)
 {
 	printk("[VIB] %s\n",__func__);
-
-	schedule_work(&work_vibrator_on);
+	vibrator_drvdata.power_onoff(1);
 }
 
 static void timed_vibrator_off(struct timed_output_dev *sdev)
 {
 	printk("[VIB] %s\n",__func__);
-
-	schedule_work(&work_vibrator_off);
+	vibrator_drvdata.power_onoff(0);
 }
 
 static void vibrator_enable(struct timed_output_dev *dev, int value)
@@ -172,9 +160,6 @@ static int msm_vibrator_probe(struct platform_device *pdev)
 
 	printk("[VIB] Probe function is called\n");
 
-	INIT_WORK(&work_vibrator_on, msm_vibrator_on);
-	INIT_WORK(&work_vibrator_off, msm_vibrator_off);
-
 	hrtimer_init(&vibe_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	vibe_timer.function = vibrator_timer_func;
 
@@ -214,4 +199,3 @@ module_exit(msm_timed_vibrator_exit);
 
 MODULE_DESCRIPTION("timed output vibrator device");
 MODULE_LICENSE("GPL");
-
