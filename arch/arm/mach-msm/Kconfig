@@ -2001,6 +2001,19 @@ config MSM_CPU_FREQ_MIN
 
 endif # CPU_FREQ_MSM
 
+config CPU_OVERCLOCK
+	bool "Enable CPU Overclocking option"
+	default n
+	help
+	  Krait overclocking up to 1.45 GHz
+
+config CPU_OVERCLOCK_MORE
+	bool "Enable MAX overclocking
+	default n
+	help
+	  Krait overclocking up to 1.7 GHZ,
+	  Be careful!!!
+
 config CPU_UNDERCLOCK
 	bool "Enable extra low CPU clocks"
 	default n
