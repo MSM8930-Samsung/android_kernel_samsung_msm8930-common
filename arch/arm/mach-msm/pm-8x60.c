@@ -389,6 +389,7 @@ static void msm_pm_config_hw_before_retention(void)
 static int msm_pm_sleep_time_override;
 module_param_named(sleep_time_override,
 	msm_pm_sleep_time_override, int, S_IRUGO | S_IWUSR | S_IWGRP);
+static uint64_t suspend_wake_time;
 #endif
 
 #define SCLK_HZ (32768)
@@ -1069,9 +1070,11 @@ static int msm_pm_enter(suspend_state_t state)
 			msm_gpio_print_enabled();
 
 #ifdef CONFIG_MSM_SLEEP_TIME_OVERRIDE
+		if (!suspend_wake_time)
+			suspend_wake_time =  msm_pm_sleep_time_override;
 		if (msm_pm_sleep_time_override > 0) {
 			int64_t ns = NSEC_PER_SEC *
-				(int64_t) msm_pm_sleep_time_override;
+				(int64_t) suspend_wake_time;
 			msm_pm_set_max_sleep_time(ns);
 			msm_pm_sleep_time_override = 0;
 		}
@@ -1128,6 +1131,21 @@ static struct platform_suspend_ops msm_pm_ops = {
 	.enter = msm_pm_enter,
 	.valid = suspend_valid_only_mem,
 };
+
+void lpm_suspend_wake_time(uint64_t wakeup_time)
+{
+	if (wakeup_time <= 0) {
+		suspend_wake_time = msm_pm_sleep_time_override;
+		return;
+	}
+
+	if (msm_pm_sleep_time_override &&
+			(msm_pm_sleep_time_override < wakeup_time))
+			suspend_wake_time = msm_pm_sleep_time_override;
+	else
+			suspend_wake_time = wakeup_time;
+}
+EXPORT_SYMBOL(lpm_suspend_wake_time);
 
 /******************************************************************************
  * Initialization routine
