@@ -37,16 +37,9 @@
 #include <linux/sched.h>
 #include <linux/rcupdate.h>
 #include <linux/notifier.h>
+#include <linux/swap.h>
 #include <linux/mutex.h>
 #include <linux/delay.h>
-#include <linux/swap.h>
-#include <linux/fs.h>
-
-#ifdef CONFIG_HIGHMEM
-#define _ZONE ZONE_HIGHMEM
-#else
-#define _ZONE ZONE_NORMAL
-#endif
 
 static uint32_t lowmem_debug_level = 1;
 static int lowmem_adj[6] = {
@@ -114,18 +107,22 @@ int can_use_cma_pages(gfp_t gfp_mask)
 	return can_use;
 }
 
-static DEFINE_MUTEX(scan_mutex);
 
 void tune_lmk_zone_param(struct zonelist *zonelist, int classzone_idx,
-					int *other_free, int *other_file)
+					int *other_free, int *other_file,
+					int use_cma_pages)
 {
 	struct zone *zone;
 	struct zoneref *zoneref;
 	int zone_idx;
 
 	for_each_zone_zonelist(zone, zoneref, zonelist, MAX_NR_ZONES) {
-		if ((zone_idx = zonelist_zone_idx(zoneref)) == ZONE_MOVABLE)
+		if ((zone_idx = zonelist_zone_idx(zoneref)) == ZONE_MOVABLE) {
+			if (!use_cma_pages)
+				*other_free -=
+				    zone_page_state(zone, NR_FREE_CMA_PAGES);
 			continue;
+		}
 
 		if (zone_idx > classzone_idx) {
 			if (other_free != NULL)
@@ -136,12 +133,22 @@ void tune_lmk_zone_param(struct zonelist *zonelist, int classzone_idx,
 							       NR_FILE_PAGES)
 					      - zone_page_state(zone, NR_SHMEM);
 		} else if (zone_idx < classzone_idx) {
-			if (zone_watermark_ok(zone, 0, 0, classzone_idx, 0))
+			if (zone_watermark_ok(zone, 0, 0, classzone_idx, 0)) {
+				if (!use_cma_pages) {
+					*other_free -= min(
+					  zone->lowmem_reserve[classzone_idx] +
+					  zone_page_state(
+					    zone, NR_FREE_CMA_PAGES),
+					  zone_page_state(
+					    zone, NR_FREE_PAGES));
+				} else {
+					*other_free -=
+					  zone->lowmem_reserve[classzone_idx];
+				}
+			} else {
 				*other_free -=
-				           zone->lowmem_reserve[classzone_idx];
-			else
-				*other_free -=
-				           zone_page_state(zone, NR_FREE_PAGES);
+					   zone_page_state(zone, NR_FREE_PAGES);
+			}
 		}
 	}
 }
@@ -153,12 +160,14 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 	struct zonelist *zonelist;
 	enum zone_type high_zoneidx, classzone_idx;
 	unsigned long balance_gap;
+	int use_cma_pages;
 
 	gfp_mask = sc->gfp_mask;
 	zonelist = node_zonelist(0, gfp_mask);
 	high_zoneidx = gfp_zone(gfp_mask);
 	first_zones_zonelist(zonelist, high_zoneidx, NULL, &preferred_zone);
 	classzone_idx = zone_idx(preferred_zone);
+	use_cma_pages = can_use_cma_pages(gfp_mask);
 
 	balance_gap = min(low_wmark_pages(preferred_zone),
 			  (preferred_zone->present_pages +
@@ -170,27 +179,45 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 			  balance_gap, 0, 0))) {
 		if (lmk_fast_run)
 			tune_lmk_zone_param(zonelist, classzone_idx, other_free,
-				       other_file);
+				       other_file, use_cma_pages);
 		else
 			tune_lmk_zone_param(zonelist, classzone_idx, other_free,
-				       NULL);
+				       NULL, use_cma_pages);
 
-		if (zone_watermark_ok(preferred_zone, 0, 0, _ZONE, 0))
-			*other_free -=
-			           preferred_zone->lowmem_reserve[_ZONE];
-		else
+		if (zone_watermark_ok(preferred_zone, 0, 0, ZONE_HIGHMEM, 0)) {
+			if (!use_cma_pages) {
+				*other_free -= min(
+				  preferred_zone->lowmem_reserve[ZONE_HIGHMEM]
+				  + zone_page_state(
+				    preferred_zone, NR_FREE_CMA_PAGES),
+				  zone_page_state(
+				    preferred_zone, NR_FREE_PAGES));
+			} else {
+				*other_free -=
+				  preferred_zone->lowmem_reserve[ZONE_HIGHMEM];
+			}
+		} else {
 			*other_free -= zone_page_state(preferred_zone,
 						      NR_FREE_PAGES);
+		}
+
 		lowmem_print(4, "lowmem_shrink of kswapd tunning for highmem "
 			     "ofree %d, %d\n", *other_free, *other_file);
 	} else {
 		tune_lmk_zone_param(zonelist, classzone_idx, other_free,
-			       other_file);
+			       other_file, use_cma_pages);
+
+		if (!use_cma_pages) {
+			*other_free -=
+			  zone_page_state(preferred_zone, NR_FREE_CMA_PAGES);
+		}
 
 		lowmem_print(4, "lowmem_shrink tunning for others ofree %d, "
 			     "%d\n", *other_free, *other_file);
 	}
 }
+
+static DEFINE_MUTEX(scan_mutex);
 
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
@@ -213,14 +240,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	}
 
 	other_free = global_page_state(NR_FREE_PAGES);
-
-	if (global_page_state(NR_SHMEM) + total_swapcache_pages <
-		global_page_state(NR_FILE_PAGES))
-		other_file = global_page_state(NR_FILE_PAGES) -
-						global_page_state(NR_SHMEM) -
-						total_swapcache_pages;
-	else
-		other_file = 0;
+	other_file = global_page_state(NR_FILE_PAGES) -
+						global_page_state(NR_SHMEM);
 
 	tune_lmk_param(&other_free, &other_file, sc);
 
