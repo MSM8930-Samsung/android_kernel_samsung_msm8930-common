@@ -6157,8 +6157,8 @@ int msm_axi_subdev_init(struct v4l2_subdev *sd,
 	}
 #ifdef VFE_IOMMU_FAULT_HANDLER
 	iommu_set_fault_handler(mctl->domain,
-						 vfe_iommu_fault_handler, NULL);
-#endif	
+		vfe_iommu_fault_handler, NULL);
+#endif
 #endif
 	dtv_update_camera_vector_override(1);
 	msm_camio_bus_scale_cfg(
