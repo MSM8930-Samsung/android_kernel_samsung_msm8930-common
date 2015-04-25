@@ -456,10 +456,16 @@ static ssize_t csc_write_cfg(struct device *dev,
 	ssize_t ret = strnlen(buf, PAGE_SIZE);
 	int err;
 	int mode;
+	struct msm_fb_data_type *mfd = registered_fb[0]->par;
 
 	err =  kstrtoint(buf, 0, &mode);
 	if (err)
 	       return ret;
+
+	if(mdp_fb_is_power_off(mfd)) {
+ 		pr_err("Failed CSC Update Since display is off");
+ 		return ret;
+	}
 
 	cscctrl.mode = mode;
 	update_csc_registers(cscctrl.mode);
