@@ -135,6 +135,29 @@ unknown_command:
 	return 0;
 }
 
+
+
+	if (!mdp_fb_is_power_off(mfd) == TRUE)
+		{ 
+			if( onoff )
+				{
+				msleep(30);
+				mipi_samsung_disp_send_cmd(mfd, PANEL_HSYNC_ON, true);
+				pr_info("%s : HSYNC On\n",__func__);
+				}
+			else
+				{
+				mipi_samsung_disp_send_cmd(mfd, PANEL_HSYNC_OFF, true);
+				msleep(10); /* Need time to discharging by capacitance*/
+				pr_info("%s : HSYNC Off\n",__func__);
+				}
+		}
+	else
+		pr_err("%s : panel power off\n",__func__);
+	
+return;
+}
+#endif
 static char manufacture_id1[2] = {0xDA, 0x00}; /* DTYPE_DCS_READ */
 static char manufacture_id2[2] = {0xDB, 0x00}; /* DTYPE_DCS_READ */
 static char manufacture_id3[2] = {0xDC, 0x00}; /* DTYPE_DCS_READ */
@@ -384,8 +407,8 @@ static ssize_t mipi_samsung_disp_get_power(struct device *dev,
 	if (unlikely(mfd->key != MFD_KEY))
 		return -EINVAL;
 
-	rc = snprintf((char *)buf, sizeof(buf), "%d\n", mfd->panel_power_on);
-	pr_info("mipi_samsung_disp_get_power(%d)\n", mfd->panel_power_on);
+	rc = sprintf((char *)buf, "%d\n", !mdp_fb_is_power_off(mfd));
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
 
 	return rc;
 }
@@ -405,12 +428,13 @@ static ssize_t mipi_samsung_disp_set_power(struct device *dev,
 	if (sscanf(buf, "%u", &power) != 1)
 		return -EINVAL;
 
-	if (power == mfd->panel_power_on)
+	if (power == !mdp_fb_is_power_off(mfd))
 		return 0;
 
 	if (power) {
 		mfd->fbi->fbops->fb_blank(FB_BLANK_UNBLANK, mfd->fbi);
 		mfd->fbi->fbops->fb_pan_display(&mfd->fbi->var, mfd->fbi);
+		mipi_samsung_disp_send_cmd(mfd, PANEL_LATE_ON, true);
 		mipi_samsung_disp_backlight(mfd);
 	} else {
 		mfd->fbi->fbops->fb_blank(FB_BLANK_POWERDOWN, mfd->fbi);

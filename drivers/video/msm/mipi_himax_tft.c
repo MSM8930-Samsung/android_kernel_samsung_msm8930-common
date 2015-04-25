@@ -454,7 +454,7 @@ static void mipi_samsung_disp_backlight(struct msm_fb_data_type *mfd)
 	mipi  = &mfd->panel_info.mipi;
 	if (bl_level_old == mfd->bl_level)
 		goto end;
-	if (!msd.mpd->set_brightness_level ||  !mfd->panel_power_on)
+	if (!msd.mpd->set_brightness_level ||  mdp_fb_is_power_off(mfd))
 		goto end;
 
 #if defined(CONFIG_BACKLIGHT_IC_KTD253)
@@ -589,8 +589,8 @@ static ssize_t mipi_samsung_disp_get_power(struct device *dev,
 	if (unlikely(mfd->key != MFD_KEY))
 		return -EINVAL;
 
-	rc = snprintf((char *)buf, sizeof(buf), "%d\n", mfd->panel_power_on);
-	pr_info("mipi_samsung_disp_get_power(%d)\n", mfd->panel_power_on);
+	rc = sprintf((char *)buf, "%d\n", !mdp_fb_is_power_off(mfd));
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
 
 	return rc;
 }
@@ -606,7 +606,7 @@ static ssize_t mipi_samsung_disp_set_power(struct device *dev,
 	if (sscanf(buf, "%u", &power) != 1)
 		return -EINVAL;
 
-	if (power == mfd->panel_power_on)
+	if (power == !mdp_fb_is_power_off(mfd))
 		return 0;
 
 	if (power) {
@@ -633,9 +633,9 @@ static int mipi_samsung_disp_get_power(struct lcd_device *dev)
 	if (unlikely(mfd->key != MFD_KEY))
 		return -EINVAL;
 
-	pr_info("mipi_samsung_disp_get_power(%d)\n", mfd->panel_power_on);
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
 
-	return mfd->panel_power_on;
+	return !mdp_fb_is_power_off(mfd);
 }
 
 static int mipi_samsung_disp_set_power(struct lcd_device *dev, int power)
@@ -644,7 +644,7 @@ static int mipi_samsung_disp_set_power(struct lcd_device *dev, int power)
 
 	mfd = platform_get_drvdata(msd.msm_pdev);
 
-	if (power == mfd->panel_power_on)
+	if (power == !mdp_fb_is_power_off(mfd))
 		return 0;
 
 	if (power) {
@@ -717,7 +717,7 @@ static ssize_t mipi_samsung_disp_acl_store(struct device *dev,
 
 	mfd = platform_get_drvdata(msd.msm_pdev);
 
-	if (!mfd->panel_power_on) {
+	if (mdp_fb_is_power_off(mfd)) {
 		pr_info("%s: panel is off state. updating state value.\n",
 			__func__);
 		if (sysfs_streq(buf, "1") && !msd.dstat.acl_on)

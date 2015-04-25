@@ -1166,9 +1166,10 @@ end:
 	}
 	
 	pr_info("mipi_samsung_disp_backlight %d\n", mfd->bl_level);
-	if (!msd.mpd->set_gamma ||  !mfd->panel_power_on ||\
-		mfd->resume_state == MIPI_SUSPEND_STATE)
-		goto end;
+
+	if (!msd.mpd->set_gamma ||  mdp_fb_is_power_off(mfd) ||\
+			mfd->resume_state == MIPI_SUSPEND_STATE)
+		return;
 
 	if (msd.mpd->set_gamma(mfd->bl_level, msd.dstat.gamma_mode) < 0)
 		goto end;
@@ -1292,8 +1293,8 @@ static ssize_t mipi_samsung_disp_get_power(struct device *dev,
 	if (unlikely(mfd->key != MFD_KEY))
 		return -EINVAL;
 
-	rc = snprintf((char *)buf, sizeof(*buf), "%d\n", mfd->panel_power_on);
-	pr_info("mipi_samsung_disp_get_power(%d)\n", mfd->panel_power_on);
+	rc = sprintf((char *)buf, "%d\n", !mdp_fb_is_power_off(mfd));
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
 
 	return rc;
 }
@@ -1801,6 +1802,9 @@ static char char_to_dec(char data1, char data2)
 
 	dec = data1 << 4;
 
+	if (power == !mdp_fb_is_power_off(mfd))
+		return 0;
+
 	if (data2 >= 'a') {
 		data2 -= 'a';
 		data2 += 10;
@@ -1874,6 +1878,10 @@ static void sending_tune_cmd(char *src, int len)
 	mipi_dsi_cmdlist_put(&cmdreq);
 
 	mutex_unlock(&dsi_tx_mutex);
+
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
+
+	return !mdp_fb_is_power_off(mfd);
 }
 
 static void load_tuning_file(char *filename)
@@ -1890,6 +1898,9 @@ static void load_tuning_file(char *filename)
 
 	fs = get_fs();
 	set_fs(get_ds());
+
+	if (power == !mdp_fb_is_power_off(mfd))
+		return 0;
 
 	filp = filp_open(filename, O_RDONLY, 0);
 	if (IS_ERR(filp)) {
@@ -1984,6 +1995,29 @@ static void err_fg_work_func(struct work_struct *work)
 	mfd = platform_get_drvdata(msd.msm_pdev);
 
 	bl_backup = mfd->bl_level;
+
+	if (mdp_fb_is_power_off(mfd)) {
+		pr_info("%s: panel is off state. updating state value.\n",
+				__func__);
+		if (sysfs_streq(buf, "1") && !msd.dstat.acl_on)
+			msd.dstat.acl_on = true;
+		else if (sysfs_streq(buf, "0") && msd.dstat.acl_on)
+			msd.dstat.acl_on = false;
+		else
+			pr_info("%s: Invalid argument!!", __func__);
+	} else {
+		if (sysfs_streq(buf, "1") && !msd.dstat.acl_on) {
+			if (msd.mpd->set_acl(mfd->bl_level))
+				mipi_samsung_disp_send_cmd(
+						mfd, PANEL_ACL_OFF, true);
+			else {
+				mipi_samsung_disp_send_cmd(
+						mfd, PANEL_ACL_ON, true);
+				mipi_samsung_disp_send_cmd(
+						mfd, PANEL_ACL_UPDATE, true);
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+	/* [junesok] delete cmc624 things */
+		/*		cabc_onoff_ctrl(1);*/
 
 	pr_info("%s : start", __func__);
 	err_fg_working = 1;
