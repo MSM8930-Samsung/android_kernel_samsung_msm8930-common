@@ -127,6 +127,10 @@
 #include <mach/msm8930-thermistor.h>
 #endif
 
+#ifdef CONFIG_KEXEC_HARDBOOT
+#include <asm/kexec.h>
+#endif
+
 #include "timer.h"
 #include "devices.h"
 #include "devices-msm8x60.h"
@@ -1667,11 +1671,19 @@ static struct platform_device ram_console_device = {
 #endif
 
 #ifdef CONFIG_ANDROID_PERSISTENT_RAM
-#define RAMCONSOLE_PHYS_ADDR 0x8FE00000
+#define RAMCONSOLE_PHYS_ADDR 0x8FD00000
 static struct persistent_ram_descriptor per_ram_descs[] __initdata = {
 	{
 		.name = "ram_console",
+#ifdef CONFIG_KEXEC_HARDBOOT
+                .size = KEXEC_HB_PAGE_ADDR - RAMCONSOLE_PHYS_ADDR,
+       	},
+	{
+                .name = "kexec_hb_page",
+                .size = SZ_1M - (KEXEC_HB_PAGE_ADDR - RAMCONSOLE_PHYS_ADDR),
+#else
 		.size = SZ_1M,
+#endif
 	}
 };
 
