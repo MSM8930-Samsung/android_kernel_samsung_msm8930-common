@@ -194,6 +194,8 @@ static int test_task_flag(struct task_struct *p, int flag)
 	return 0;
 }
 
+static DEFINE_MUTEX(scan_mutex);
+
 int can_use_cma_pages(gfp_t gfp_mask)
 {
 	int can_use = 0;
@@ -219,10 +221,9 @@ int can_use_cma_pages(gfp_t gfp_mask)
 	return can_use;
 }
 
-static DEFINE_MUTEX(scan_mutex);
-
 void tune_lmk_zone_param(struct zonelist *zonelist, int classzone_idx,
-					int *other_free, int *other_file)
+					int *other_free, int *other_file,
+					int use_cma_pages)
 {
 	struct zone *zone;
 	struct zoneref *zoneref;
@@ -235,6 +236,7 @@ void tune_lmk_zone_param(struct zonelist *zonelist, int classzone_idx,
 				*other_free -=
 				    zone_page_state(zone, NR_FREE_CMA_PAGES);
 			continue;
+		}
 
 		if (zone_idx > classzone_idx) {
 			if (other_free != NULL)
@@ -268,6 +270,35 @@ void tune_lmk_zone_param(struct zonelist *zonelist, int classzone_idx,
 	}
 }
 
+#ifdef CONFIG_HIGHMEM
+void adjust_gfp_mask(gfp_t *gfp_mask)
+{
+	struct zone *preferred_zone;
+	struct zonelist *zonelist;
+	enum zone_type high_zoneidx;
+
+	if (current_is_kswapd()) {
+		zonelist = node_zonelist(0, *gfp_mask);
+		high_zoneidx = gfp_zone(*gfp_mask);
+		first_zones_zonelist(zonelist, high_zoneidx, NULL,
+				&preferred_zone);
+
+		if (high_zoneidx == ZONE_NORMAL) {
+			if (zone_watermark_ok_safe(preferred_zone, 0,
+					high_wmark_pages(preferred_zone), 0,
+					0))
+				*gfp_mask |= __GFP_HIGHMEM;
+		} else if (high_zoneidx == ZONE_HIGHMEM) {
+			*gfp_mask |= __GFP_HIGHMEM;
+		}
+	}
+}
+#else
+void adjust_gfp_mask(gfp_t *unused)
+{
+}
+#endif
+
 void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 {
 	gfp_t gfp_mask;
@@ -275,12 +306,16 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 	struct zonelist *zonelist;
 	enum zone_type high_zoneidx, classzone_idx;
 	unsigned long balance_gap;
+	int use_cma_pages;
 
 	gfp_mask = sc->gfp_mask;
+	adjust_gfp_mask(&gfp_mask);
+
 	zonelist = node_zonelist(0, gfp_mask);
 	high_zoneidx = gfp_zone(gfp_mask);
 	first_zones_zonelist(zonelist, high_zoneidx, NULL, &preferred_zone);
 	classzone_idx = zone_idx(preferred_zone);
+	use_cma_pages = can_use_cma_pages(gfp_mask);
 
 	balance_gap = min(low_wmark_pages(preferred_zone),
 			  (preferred_zone->present_pages +
@@ -292,22 +327,38 @@ void tune_lmk_param(int *other_free, int *other_file, struct shrink_control *sc)
 			  balance_gap, 0, 0))) {
 		if (lmk_fast_run)
 			tune_lmk_zone_param(zonelist, classzone_idx, other_free,
-				       other_file);
+				       other_file, use_cma_pages);
 		else
 			tune_lmk_zone_param(zonelist, classzone_idx, other_free,
-				       NULL);
+				       NULL, use_cma_pages);
 
-		if (zone_watermark_ok(preferred_zone, 0, 0, _ZONE, 0))
-			*other_free -=
-			           preferred_zone->lowmem_reserve[_ZONE];
-		else
+		if (zone_watermark_ok(preferred_zone, 0, 0, _ZONE, 0)) {
+			if (!use_cma_pages) {
+				*other_free -= min(
+				  preferred_zone->lowmem_reserve[_ZONE]
+				  + zone_page_state(
+				    preferred_zone, NR_FREE_CMA_PAGES),
+				  zone_page_state(
+				    preferred_zone, NR_FREE_PAGES));
+			} else {
+				*other_free -=
+				  preferred_zone->lowmem_reserve[_ZONE];
+			}
+		} else {
 			*other_free -= zone_page_state(preferred_zone,
 						      NR_FREE_PAGES);
+		}
+
 		lowmem_print(4, "lowmem_shrink of kswapd tunning for highmem "
 			     "ofree %d, %d\n", *other_free, *other_file);
 	} else {
 		tune_lmk_zone_param(zonelist, classzone_idx, other_free,
-			       other_file);
+			       other_file, use_cma_pages);
+
+		if (!use_cma_pages) {
+			*other_free -=
+			  zone_page_state(preferred_zone, NR_FREE_CMA_PAGES);
+		}
 
 		lowmem_print(4, "lowmem_shrink tunning for others ofree %d, "
 			     "%d\n", *other_free, *other_file);
