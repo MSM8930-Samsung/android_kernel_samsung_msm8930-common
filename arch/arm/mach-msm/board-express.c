@@ -108,7 +108,7 @@
 #include <linux/i2c/taos.h>
 #endif
 #ifdef CONFIG_NFC_PN547
-#include <linux/pn544.h>
+#include <linux/pn547.h>
 #endif
 
 
@@ -232,7 +232,7 @@ struct sx150x_platform_data msm8930_sx150x_data[] = {
 #define HOLE_SIZE	0x20000
 #define MSM_CONTIG_MEM_SIZE  0x65000
 #ifdef CONFIG_MSM_IOMMU
-#define MSM_ION_MM_SIZE            0x3800000 /* Need to be multiple of 64K */
+#define MSM_ION_MM_SIZE            0x5C00000 /* 56MB(0x3800000) -> 88MB Need to be multiple of 64K */
 #define MSM_ION_SF_SIZE            0x0
 #define MSM_ION_QSECOM_SIZE	0x780000 /* (7.5MB) */
 #define MSM_ION_HEAP_NUM	7
@@ -929,9 +929,9 @@ err_irq_gpio_leda_req:
 #endif
 
 #ifdef CONFIG_NFC_PN547
-static void pn544_conf_gpio(void)
+static void pn547_conf_gpio(void)
 {
-	pr_debug("pn544_conf_gpio\n");
+	pr_debug("pn547_conf_gpio\n");
 
 	gpio_tlmm_config(GPIO_CFG(GPIO_NFC_SDA, 0, GPIO_CFG_INPUT,
 		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
@@ -939,47 +939,49 @@ static void pn544_conf_gpio(void)
 		GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 }
 
-static int __init pn544_init(void)
+static int __init pn547_init(void)
 {
 	gpio_tlmm_config(GPIO_CFG(GPIO_NFC_IRQ, 0, GPIO_CFG_INPUT,
 		GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
 	gpio_tlmm_config(GPIO_CFG(GPIO_NFC_CLK_REQ, 0, GPIO_CFG_INPUT,
 		GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA), 1);
 
-	pn544_conf_gpio();
+	pn547_conf_gpio();
 	return 0;
 }
 #endif
 
 #ifdef CONFIG_NFC_PN547
-static struct i2c_gpio_platform_data pn544_i2c_gpio_data = {
+static struct i2c_gpio_platform_data pn547_i2c_gpio_data = {
 	.sda_pin = GPIO_NFC_SDA,
 	.scl_pin = GPIO_NFC_SCL,
 	.udelay = 5,
 };
 
-static struct platform_device pn544_i2c_gpio_device = {
+static struct platform_device pn547_i2c_gpio_device = {
 	.name = "i2c-gpio",
 	.id = MSM_NFC_I2C_BUS_ID,
 	.dev = {
-		.platform_data = &pn544_i2c_gpio_data,
+		.platform_data = &pn547_i2c_gpio_data,
 	},
 };
 
-static struct pn544_i2c_platform_data pn544_pdata = {
-	.conf_gpio = pn544_conf_gpio,
+static struct pn547_i2c_platform_data pn547_pdata = {
+	.conf_gpio = pn547_conf_gpio,
 	.irq_gpio = GPIO_NFC_IRQ,
 	.ven_gpio = GPIO_NFC_EN,
 	.firm_gpio = GPIO_NFC_FIRMWARE,
+#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	.clk_req_gpio = GPIO_NFC_CLK_REQ,
 	.clk_req_irq = MSM_GPIO_TO_INT(GPIO_NFC_CLK_REQ),
+#endif
 };
 
-static struct i2c_board_info pn544_info[] __initdata = {
+static struct i2c_board_info pn547_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("pn544", 0x2b),
+		I2C_BOARD_INFO("pn547", 0x2b),
 		.irq = MSM_GPIO_TO_INT(GPIO_NFC_IRQ),
-		.platform_data = &pn544_pdata,
+		.platform_data = &pn547_pdata,
 	},
 };
 #endif
@@ -2524,6 +2526,21 @@ static uint8_t spm_power_collapse_with_rpm[] __initdata = {
 	0x24, 0x30, 0x0f,
 };
 
+static uint8_t spm_power_collapse_without_rpm_krait_v3[] __initdata = {
+	0x00, 0x30, 0x24, 0x30,
+	0x54, 0x10, 0x09, 0x03,
+	0x01, 0x10, 0x54, 0x30,
+	0x0C, 0x24, 0x30, 0x0f,
+};
+
+static uint8_t spm_power_collapse_with_rpm_krait_v3[] __initdata = {
+	0x00, 0x30, 0x24, 0x30,
+	0x54, 0x10, 0x09, 0x07,
+	0x01, 0x0B, 0x10, 0x54,
+	0x30, 0x0C, 0x24, 0x30,
+	0x0f,
+};
+
 static struct msm_spm_seq_entry msm_spm_boot_cpu_seq_list[] __initdata = {
 	[0] = {
 		.mode = MSM_SPM_MODE_CLOCK_GATING,
@@ -3265,7 +3282,7 @@ static struct platform_device *common_devices[] __initdata = {
 	&opt_i2c_gpio_device,
 #endif
 #ifdef CONFIG_NFC_PN547
-	&pn544_i2c_gpio_device,
+	&pn547_i2c_gpio_device,
 #endif
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
@@ -3576,8 +3593,8 @@ static struct i2c_registry msm8930_i2c_devices[] __initdata = {
 #ifdef CONFIG_NFC_PN547
 	{
 		MSM_NFC_I2C_BUS_ID,
-		pn544_info,
-		ARRAY_SIZE(pn544_info),
+		pn547_info,
+		ARRAY_SIZE(pn547_info),
 	},
 #endif
 #ifdef CONFIG_OPTICAL_TAOS_TRITON
@@ -3770,6 +3787,27 @@ static void __init msm8930_pm8917_pdata_fixup(void)
 	pdata->uses_pm8917 = true;
 }
 
+static void __init msm8930ab_update_krait_spm(void)
+{
+	int i;
+
+	/* Update the SPM sequences for SPC and PC */
+	for (i = 0; i < ARRAY_SIZE(msm_spm_data); i++) {
+		int j;
+		struct msm_spm_platform_data *pdata = &msm_spm_data[i];
+		for (j = 0; j < pdata->num_modes; j++) {
+			if (pdata->modes[j].cmd ==
+					spm_power_collapse_without_rpm)
+				pdata->modes[j].cmd =
+				spm_power_collapse_without_rpm_krait_v3;
+			else if (pdata->modes[j].cmd ==
+					spm_power_collapse_with_rpm)
+				pdata->modes[j].cmd =
+				spm_power_collapse_with_rpm_krait_v3;
+		}
+	}
+}
+
 static void __init msm8930ab_update_retention_spm(void)
 {
 	int i;
@@ -3843,6 +3881,8 @@ void __init msm8930_express2_init(void)
 #endif
 	msm8930_i2c_init();
 	msm8930_init_gpu();
+	if (cpu_is_msm8930ab())
+		msm8930ab_update_krait_spm();
 	if (cpu_is_krait_v3()) {
 		msm_pm_set_tz_retention_flag(0);
 		msm8930ab_update_retention_spm();
@@ -3914,7 +3954,7 @@ void __init msm8930_express2_init(void)
 	msm8930_mhl_gpio_init();
 #endif
 #ifdef CONFIG_NFC_PN547
-	pn544_init();
+	pn547_init();
 #endif
 #ifdef CONFIG_INPUT_YAS_SENSORS
 	sensor_device_init();
