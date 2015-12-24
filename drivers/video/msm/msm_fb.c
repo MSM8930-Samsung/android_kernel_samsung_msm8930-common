@@ -72,7 +72,7 @@ static boolean bf_supported;
 unsigned long first_backlight_duration = 150;     // booting time 1500ms
 unsigned long backlight_duration = 30;             // wakeup time  300ms
 static unsigned int recovery_boot_mode;
-//extern int poweroff_charging;
+extern int poweroff_charging;
 #endif
 
 static struct platform_device *pdev_list[MSM_FB_MAX_DEV_LIST];
@@ -1111,9 +1111,9 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 #endif
 				mfd->panel_driver_on = mfd->op_enable;
 #ifdef CONFIG_BACKLIGHT_WORKQUEUE
-				if(recovery_boot_mode)
+				if(recovery_boot_mode || poweroff_charging)
 				{
-					printk(" %s recoverymode : %d \n",__func__,recovery_boot_mode);
+					printk(" %s recoverymode : %d, poweroff_charging : %d \n",__func__,recovery_boot_mode,poweroff_charging);
 					unset_bl_level = 255;
 					if (unset_bl_level && !bl_updated)
 						schedule_delayed_work(&mfd->backlight_worker,
