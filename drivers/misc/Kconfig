@@ -800,11 +800,39 @@ config ADC_STMPE811
 	help
 	  This option enables ADC checking driver. stmpe811.
 
-config TIMA_LOG
-	tristate "Support for dumping TIMA log"
-	default m
+config CHG_INCOMPATIBLE
+	tristate "support incompatible charger"
+	default n
 	help
-	  This option enables support for dumping TIMA log
+	  this option enable support for incompatible charger
+
+config NFC_PN544
+        bool "NXP PN544 NFC Controller Driver"
+        default n
+        help
+          NXP PN544 Near Field Communication controller support.
+
+config NFC_PN547
+    bool "NXP PN547 NFC Controller Driver"
+    depends on I2C
+    default n
+    help
+      NXP PN547 Near Field Communication controller support.
+
+config NFC_PN547_CLOCK_REQUEST
+    bool "NXP PN547 PM8917 XO Clock Source"
+    depends on NFC_PN547
+    default n
+    help
+      PM8917 Clock request for NXP PN547 Near Field
+      Communication controller support.
+      This option enables A1 clock for NFC.
+
+config DESKDOCK_DISABLE
+	tristate "Not support DESKDOCK"
+	default n
+	help
+	  This option enable not support for DESKDOCK
 
 config GENERIC_BLN
 	bool "Generic BLN support for backlight notification"

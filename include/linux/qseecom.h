@@ -165,5 +165,4 @@ struct qseecom_qseos_app_load_query {
 #define QSEECOM_IOCTL_APP_LOADED_QUERY_REQ \
 	_IOWR(QSEECOM_IOC_MAGIC, 15, struct qseecom_qseos_app_load_query)
 
-
 #endif /* __QSEECOM_H_ */

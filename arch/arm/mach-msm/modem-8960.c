@@ -149,6 +149,15 @@ static struct ramdump_segment smem_segments[] = {
 	{0x80000000, 0x00200000},
 };
 
+#ifdef CONFIG_SEC_SSR_DUMP
+/* Defining the kernel ramdump address and its Size */
+static struct ramdump_segment kernel_log_segments[] = {
+        {0x88B00008, 0x00080000},
+};
+/* Declaring the kernel ramdump device */
+static void *kernel_log_ramdump_dev;
+#endif
+
 static void *modemfw_ramdump_dev;
 static void *modemsw_ramdump_dev;
 static void *smem_ramdump_dev;
