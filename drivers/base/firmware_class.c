@@ -728,22 +728,13 @@ request_firmware(const struct firmware **firmware_p, const char *name,
 	return __request_firmware(firmware_p, name, device, 0, 0);
 }
 
-/**
- * request_firmware_direct: - send firmware request and wait for it
- * @name: name of firmware file
- * @device: device for which firmware is being loaded
- * @dest_addr: Destination address for the firmware
- * @dest_size:
- *
- *      Similar to request_firmware, except takes in a buffer address and
- *      copies firmware data directly to that buffer. Returns the size of
- *      the firmware that was loaded at dest_addr.
-*/
-int request_firmware_direct(const char *name, struct device *device,
-			phys_addr_t dest_addr, size_t dest_size)
-{
-	const struct firmware *fp = NULL;
-	int ret;
+	if (!name || name[0] == '\0')
+		return -EINVAL;
+
+	fw_priv = _request_firmware_prepare(firmware_p, name, device, true,
+					    false);
+	if (IS_ERR_OR_NULL(fw_priv))
+		return PTR_RET(fw_priv);
 
 	ret = __request_firmware(&fp, name, device, dest_addr, dest_size);
 	if (ret)
