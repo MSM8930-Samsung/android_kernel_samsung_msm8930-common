@@ -12,8 +12,6 @@
  *
  */
 
-#define MDP4_IGC_LUT_ENABLE 1
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
