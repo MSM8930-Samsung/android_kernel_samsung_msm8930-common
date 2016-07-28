@@ -395,6 +395,8 @@ void sec_otg_set_id_state(bool enable)
 		pr_info("msm_otg_set_id_state : in LPM\n");
 		pm_runtime_resume(phy->dev);
 	}
+#if defined(CONFIG_MACH_LOGANRE) || defined(CONFIG_MACH_EXPRESS)
 	msm_otg_set_id_state(enable ? 0 : 1);
+#endif
 }
 EXPORT_SYMBOL_GPL(sec_otg_set_id_state);
