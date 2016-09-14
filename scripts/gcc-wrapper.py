@@ -73,6 +73,7 @@ allowed_warnings = set([
     "cache.h:260",
     "cpufreq_intelliactive.c:832",
     "cpufreq_intelliactive.c:875",
+    "mdp4_video_enhance.c:172",
  ])
 
 # Capture the name of the object file, can find it.
