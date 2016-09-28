@@ -31,7 +31,7 @@
 #include "qdsp6/q6voice.h"
 
 #define VOIP_MIN_Q_LEN 2
-#define VOIP_MAX_Q_LEN 4
+#define VOIP_MAX_Q_LEN 10
 #define VOIP_MAX_VOC_PKT_SIZE 640
 #define VOIP_MIN_VOC_PKT_SIZE 320
 
@@ -275,21 +275,10 @@ static struct snd_kcontrol_new msm_voip_controls[] = {
 				msm_voip_mute_get, msm_voip_mute_put),
 	SOC_SINGLE_EXT("Voip Rx Volume", SND_SOC_NOPM, 0, 5, 0,
 				msm_voip_volume_get, msm_voip_volume_put),
-<<<<<<< HEAD
-	SOC_SINGLE_MULTI_EXT("Voip Mode Rate Config", SND_SOC_NOPM, 0, 23850,
-				0, 2, msm_voip_mode_rate_config_get,
-				msm_voip_mode_rate_config_put),
-=======
-#endif
 	SOC_SINGLE_EXT("Voip Mode Config", SND_SOC_NOPM, 0, VOIP_MODE_MAX, 0,
 		       msm_voip_mode_config_get, msm_voip_mode_config_put),
 	SOC_SINGLE_EXT("Voip Rate Config", SND_SOC_NOPM, 0, VOIP_RATE_MAX, 0,
-<<<<<<< HEAD
-		       msm_voip_rate_config_get, msm_voip_rate_config_put),
->>>>>>> e28a884... BACKPORT: ASoC: msm: qdsp6v2: Add support for non-pcm VoIP formats
-=======
 		       NULL, msm_voip_rate_config_put),
->>>>>>> 944528d... BACKPORT: ASoC: msm: Add support to change bit rate during VoIP call
 	SOC_SINGLE_MULTI_EXT("Voip Evrc Min Max Rate Config", SND_SOC_NOPM,
 			     0, VOC_1_RATE, 0, 2, msm_voip_evrc_min_max_rate_config_get,
 			     msm_voip_evrc_min_max_rate_config_put),
