@@ -454,8 +454,8 @@ static ssize_t mipi_samsung_disp_get_power(struct device *dev,
 	if (unlikely(mfd->key != MFD_KEY))
 		return -EINVAL;
 
-	rc = sprintf((char *)buf, "%d\n", mdp_fb_is_power_off(mfd));
-	pr_info("mipi_samsung_disp_get_power(%d)\n", mdp_fb_is_power_off(mfd));
+	rc = sprintf((char *)buf, "%d\n", !mdp_fb_is_power_off(mfd));
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
 
 	return rc;
 }
@@ -471,7 +471,7 @@ static ssize_t mipi_samsung_disp_set_power(struct device *dev,
 	if (sscanf(buf, "%u", &power) != 1)
 		return -EINVAL;
 
-	if (power == mdp_fb_is_power_off(mfd))
+	if (power == !mdp_fb_is_power_off(mfd))
 		return 0;
 
 	if (power) {
@@ -498,9 +498,9 @@ static int mipi_samsung_disp_get_power(struct lcd_device *dev)
 	if (unlikely(mfd->key != MFD_KEY))
 		return -EINVAL;
 
-	pr_info("mipi_samsung_disp_get_power(%d)\n", mdp_fb_is_power_off(mfd));
+	pr_info("mipi_samsung_disp_get_power(%d)\n", !mdp_fb_is_power_off(mfd));
 
-	return mdp_fb_is_power_off(mfd);
+	return !mdp_fb_is_power_off(mfd);
 }
 
 static int mipi_samsung_disp_set_power(struct lcd_device *dev, int power)
@@ -509,7 +509,7 @@ static int mipi_samsung_disp_set_power(struct lcd_device *dev, int power)
 
 	mfd = platform_get_drvdata(msd.msm_pdev);
 
-	if (power == mdp_fb_is_power_off(mfd))
+	if (power == !mdp_fb_is_power_off(mfd))
 		return 0;
 
 	if (power) {
