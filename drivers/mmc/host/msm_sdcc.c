@@ -496,6 +496,8 @@ msmsdcc_request_end(struct msmsdcc_host *host, struct mmc_request *mrq)
 
 	if (mrq->data)
 		mrq->data->bytes_xfered = host->curr.data_xfered;
+	if (mrq->cmd->error == -ETIMEDOUT)
+		mdelay(5);
 
 	msmsdcc_reset_dpsm(host);
 
@@ -3338,7 +3340,7 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	else
 		clk |= MCI_CLK_WIDEBUS_1;
 
-	if (msmsdcc_is_pwrsave(host) && mmc_host_may_gate_card(host->mmc->card))
+	if (msmsdcc_is_pwrsave(host))
 		clk |= MCI_CLK_PWRSAVE;
 
 	clk |= MCI_CLK_FLOWENA;
@@ -3657,7 +3659,6 @@ static int msmsdcc_switch_io_voltage(struct mmc_host *mmc,
 {
 	struct msmsdcc_host *host = mmc_priv(mmc);
 	unsigned long flags;
-	bool prev_pwrsave, curr_pwrsave;
 	int rc = 0;
 
 	switch (ios->signal_voltage) {
@@ -3690,9 +3691,7 @@ static int msmsdcc_switch_io_voltage(struct mmc_host *mmc,
 	 * low voltage is required
 	 */
 	spin_lock_irqsave(&host->lock, flags);
-	prev_pwrsave = !!(readl_relaxed(host->base + MMCICLOCK) &
-			MCI_CLK_PWRSAVE);
-	curr_pwrsave = prev_pwrsave;
+
 	/*
 	 * Poll on MCIDATIN_3_0 and MCICMDIN bits of MCI_TEST_INPUT
 	 * register until they become all zeros.
@@ -3705,12 +3704,9 @@ static int msmsdcc_switch_io_voltage(struct mmc_host *mmc,
 	}
 
 	/* Stop SD CLK output. */
-	if (!prev_pwrsave) {
-		writel_relaxed((readl_relaxed(host->base + MMCICLOCK) |
-				MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
-		msmsdcc_sync_reg_wr(host);
-		curr_pwrsave = true;
-	}
+	writel_relaxed((readl_relaxed(host->base + MMCICLOCK) |
+			MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+	msmsdcc_sync_reg_wr(host);
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	/*
@@ -3731,7 +3727,6 @@ static int msmsdcc_switch_io_voltage(struct mmc_host *mmc,
 	writel_relaxed((readl_relaxed(host->base + MMCICLOCK)
 			& ~MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
 	msmsdcc_sync_reg_wr(host);
-	curr_pwrsave = false;
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	/*
@@ -3752,9 +3747,10 @@ static int msmsdcc_switch_io_voltage(struct mmc_host *mmc,
 	}
 
 out_unlock:
-	/* Restore the correct PWRSAVE state */
-	if (prev_pwrsave ^ curr_pwrsave)
-		msmsdcc_set_pwrsave(mmc, prev_pwrsave);
+	/* Enable PWRSAVE */
+	writel_relaxed((readl_relaxed(host->base + MMCICLOCK) |
+			MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+	msmsdcc_sync_reg_wr(host);
 	spin_unlock_irqrestore(&host->lock, flags);
 out:
 	return rc;
@@ -3793,24 +3789,17 @@ static int msmsdcc_init_cm_sdc4_dll(struct msmsdcc_host *host)
 	int rc = 0;
 	unsigned long flags;
 	u32 wait_cnt;
-	bool prev_pwrsave, curr_pwrsave;
 
 	spin_lock_irqsave(&host->lock, flags);
-	prev_pwrsave = !!(readl_relaxed(host->base + MMCICLOCK) &
-			MCI_CLK_PWRSAVE);
-	curr_pwrsave = prev_pwrsave;
 	/*
 	 * Make sure that clock is always enabled when DLL
 	 * tuning is in progress. Keeping PWRSAVE ON may
 	 * turn off the clock. So let's disable the PWRSAVE
 	 * here and re-enable it once tuning is completed.
 	 */
-	if (prev_pwrsave) {
-		writel_relaxed((readl_relaxed(host->base + MMCICLOCK)
-				& ~MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
-		msmsdcc_sync_reg_wr(host);
-		curr_pwrsave = false;
-	}
+	writel_relaxed((readl_relaxed(host->base + MMCICLOCK)
+			& ~MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+	msmsdcc_sync_reg_wr(host);
 
 	/* Write 1 to DLL_RST bit of MCI_DLL_CONFIG register */
 	writel_relaxed((readl_relaxed(host->base + MCI_DLL_CONFIG)
@@ -3853,9 +3842,10 @@ static int msmsdcc_init_cm_sdc4_dll(struct msmsdcc_host *host)
 	}
 
 out:
-	/* Restore the correct PWRSAVE state */
-	if (prev_pwrsave ^ curr_pwrsave)
-		msmsdcc_set_pwrsave(host->mmc, prev_pwrsave);
+	/* re-enable PWRSAVE */
+	writel_relaxed((readl_relaxed(host->base + MMCICLOCK) |
+			MCI_CLK_PWRSAVE), host->base + MMCICLOCK);
+	msmsdcc_sync_reg_wr(host);
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	return rc;
@@ -5667,56 +5657,6 @@ err:
 	return NULL;
 }
 
-/* SYSFS about SD Card Detection */
-
-static struct device *t_flash_detect_dev;
-
-static ssize_t t_flash_detect_show(struct device *dev,
-                                   struct device_attribute *attr, char *buf)
-{
-	struct mmc_host *mmc = dev_get_drvdata(dev);
-#if !defined (CONFIG_MACH_SERRANO) && !defined (CONFIG_MACH_CANE) && !defined (CONFIG_MACH_LOGANRE)
-#if defined (CONFIG_MACH_CRATER) || defined (CONFIG_MACH_BAFFIN)
-	if (mmc->card) {
-		printk(KERN_DEBUG "sdcc3: card inserted.\n");
-		return sprintf(buf, "Insert\n");
-	} else {
-		printk(KERN_DEBUG "sdcc3: card removed.\n");
-		return sprintf(buf, "Remove\n");
-	}
-#else
-	struct msmsdcc_host *host = mmc_priv(mmc);
-        unsigned int detect;
-
-        if (host->plat->status_gpio)
-                detect = gpio_get_value(host->plat->status_gpio);
-        else {
-                pr_info("%s : External  SD detect pin Error\n", __func__);
-                return sprintf(buf, "Error\n");
-        }
-
-        pr_info("%s : detect = %d.\n", __func__, detect);
-        if (!detect) {
-                printk(KERN_DEBUG "sdcc3: card inserted.\n");
-                return sprintf(buf, "Insert\n");
-        } else {
-                printk(KERN_DEBUG "sdcc3: card removed.\n");
-                return sprintf(buf, "Remove\n");
-        }
-#endif
-#else
-	if (mmc->card) {
-		printk(KERN_DEBUG "sdcc3: card inserted.\n");
-		return sprintf(buf, "Insert\n");
-	} else {
-		printk(KERN_DEBUG "sdcc3: card removed.\n");
-		return sprintf(buf, "Remove\n");
-	}
-#endif
-}
-
-static DEVICE_ATTR(status, 0444, t_flash_detect_show, NULL);
-
 static int
 msmsdcc_probe(struct platform_device *pdev)
 {
@@ -5995,13 +5935,9 @@ msmsdcc_probe(struct platform_device *pdev)
 	mmc->caps2 |= plat->packed_write;
 
 	mmc->caps2 |= (MMC_CAP2_BOOTPART_NOACC | MMC_CAP2_DETECT_ON_ERR);
-	/*
 	mmc->caps2 |= MMC_CAP2_SANITIZE;
 	mmc->caps2 |= MMC_CAP2_INIT_BKOPS;
-	*/
 	mmc->caps2 |= MMC_CAP2_POWEROFF_NOTIFY;
-	mmc->caps2 |= MMC_CAP2_STOP_REQUEST;
-	mmc->caps2 |= MMC_CAP2_ASYNC_SDIO_IRQ_4BIT_MODE;
 
 	if (plat->nonremovable)
 		mmc->caps |= MMC_CAP_NONREMOVABLE;
@@ -6108,22 +6044,6 @@ msmsdcc_probe(struct platform_device *pdev)
 	} else if (!plat->status)
 		pr_err("%s: No card detect facilities available\n",
 		       mmc_hostname(mmc));
-	/* SYSFS about SD Card Detection */
-        if (t_flash_detect_dev == NULL && (host->pdev_id == 3)) {
-                printk(KERN_DEBUG "%s : Change sysfs Card Detect\n", __func__);
-
-                t_flash_detect_dev = device_create(sec_class,
-                        NULL, 0, NULL, "sdcard");
-                if (IS_ERR(t_flash_detect_dev))
-                        pr_err("%s : Failed to create device!\n", __func__);
-
-                if (device_create_file(t_flash_detect_dev,
-                        &dev_attr_status) < 0)
-                        pr_err("%s : Failed to create device file(%s)!\n",
-                               __func__, dev_attr_status.attr.name);
-
-                dev_set_drvdata(t_flash_detect_dev, mmc);
-        }
 
 	mmc_set_drvdata(pdev, mmc);
 
@@ -6520,12 +6440,6 @@ msmsdcc_runtime_suspend(struct device *dev)
 		goto out;
 	}
 
-#ifdef CONFIG_BROADCOM_WIFI
-	if (host->pdev_id == 4) {
-		host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
-		printk(KERN_INFO "%s: Enter WIFI suspend\n", __func__);
-	}
-#endif
 	pr_debug("%s: %s: start\n", mmc_hostname(mmc), __func__);
 	if (mmc) {
 		host->sdcc_suspending = 1;
@@ -6634,9 +6548,7 @@ static int msmsdcc_runtime_idle(struct device *dev)
 		return 0;
 
 	/* Idle timeout is not configurable for now */
-	/* Disable Runtime PM because of potential issues
 	pm_schedule_suspend(dev, host->idle_tout_ms);
-	*/
 
 	return -EAGAIN;
 }
