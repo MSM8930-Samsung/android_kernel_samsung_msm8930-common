@@ -187,23 +187,6 @@ static int sdio_read_cccr(struct mmc_card *card, u32 ocr)
 				card->sw_caps.sd3_drv_type |= SD_DRIVER_TYPE_C;
 			if (data & SDIO_DRIVE_SDTD)
 				card->sw_caps.sd3_drv_type |= SD_DRIVER_TYPE_D;
-
-			ret = mmc_io_rw_direct(card, 0, 0,
-				SDIO_CCCR_INTERRUPT_EXTENSION, 0, &data);
-			if (ret)
-				goto out;
-			if (data & SDIO_SUPPORT_ASYNC_INTR) {
-				if (card->host->caps2 &
-				    MMC_CAP2_ASYNC_SDIO_IRQ_4BIT_MODE) {
-					data |= SDIO_ENABLE_ASYNC_INTR;
-					ret = mmc_io_rw_direct(card, 1, 0,
-						SDIO_CCCR_INTERRUPT_EXTENSION,
-						data, NULL);
-					if (ret)
-						goto out;
-					card->cccr.async_intr_sup = 1;
-				}
-			}
 		}
 
 		/* if no uhs mode ensure we check for high speed */
@@ -582,16 +565,6 @@ static int mmc_sdio_init_uhs_card(struct mmc_card *card)
 	if (err)
 		goto out;
 
-#ifdef CONFIG_BROADCOM_WIFI
-	/*
-	* Prevent tuning operation when init a card
-	* for WiFi operation with sdmmc.
-	*/
-	if (!strcmp(mmc_hostname(card->host), "mmc1"))
-		printk("%s: remove initialize and start re-tuning timer"
-			"to prevent CMD53 request timeout \n", mmc_hostname(card->host));
-	else
-#endif
 	/* Initialize and start re-tuning timer */
 	if (!mmc_host_is_spi(card->host) && card->host->ops->execute_tuning)
 		err = card->host->ops->execute_tuning(card->host,

@@ -647,8 +647,7 @@ void exit_pi_state_list(struct task_struct *curr)
  */
 static int
 lookup_pi_state(u32 uval, struct futex_hash_bucket *hb,
-		union futex_key *key, struct futex_pi_state **ps,
-		struct task_struct *task)
+		union futex_key *key, struct futex_pi_state **ps)
 {
 	struct futex_pi_state *pi_state = NULL;
 	struct futex_q *this, *next;
@@ -698,6 +697,7 @@ lookup_pi_state(u32 uval, struct futex_hash_bucket *hb,
 					 */
 					goto out_state;
 				}
+
 				/*
 				 * If TID is 0, then either the dying owner
 				 * has not yet executed exit_pi_state_list()
@@ -893,7 +893,7 @@ retry:
 	 * We dont have the lock. Look up the PI state (or create it if
 	 * we are the first waiter):
 	 */
-	ret = lookup_pi_state(uval, hb, key, ps, task);
+	ret = lookup_pi_state(uval, hb, key, ps);
 
 	if (unlikely(ret)) {
 		switch (ret) {
@@ -1933,7 +1933,7 @@ static void futex_wait_queue_me(struct futex_hash_bucket *hb, struct futex_q *q,
 		 * is no timeout, or if it has yet to expire.
 		 */
 		if (!timeout || timeout->task)
-			freezable_schedule();
+			schedule();
 	}
 	__set_current_state(TASK_RUNNING);
 }

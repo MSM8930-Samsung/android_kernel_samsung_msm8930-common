@@ -21,8 +21,8 @@
 #include <mach/msm_bus_board.h>
 #include <mach/board.h>
 #include <mach/gpiomux.h>
-#include <mach/socinfo.h>
 #include <mach/msm8930-gpio.h>
+#include <mach/socinfo.h>
 #include "devices.h"
 
 #include "board-8930.h"
@@ -64,20 +64,10 @@ static struct msm_mmc_reg_data mmc_vdd_reg_data[MAX_SDCC_CONTROLLER] = {
 		 * hardware revisions - maybe once that is done, this can be
 		 * reverted.
 		 */
-		.always_on = 0,
 		.lpm_sup = 1,
 		.hpm_uA = 800000, /* 800mA */
 		.lpm_uA = 9000,
 	},
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	[SDCC4] = {
-		.name = "sdc_vdd",
-		.set_voltage_sup = 1,
-		.high_vol_level = 1800000,
-		.low_vol_level = 1800000,
-		.hpm_uA = 16000,
-	},
-#endif
 };
 
 /* All SDCC controllers may require voting for VDD PAD voltage */
@@ -105,16 +95,6 @@ static struct msm_mmc_reg_data mmc_vdd_io_reg_data[MAX_SDCC_CONTROLLER] = {
 		 * during sleep.
 		 */
 		.lpm_uA = 2000,
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	},
-	[SDCC4] = {
-		.name = "sdc_vdd_io",
-		.high_vol_level = 1800000,
-		.low_vol_level = 1800000,
-		.lpm_sup = 1,
-		.hpm_uA = 16000,
-		.lpm_uA = 2000,
-#endif
 	}
 };
 
@@ -129,33 +109,15 @@ static struct msm_mmc_slot_reg_data mmc_slot_vreg_data[MAX_SDCC_CONTROLLER] = {
 		.vdd_data = &mmc_vdd_reg_data[SDCC3],
 		.vdd_io_data = &mmc_vdd_io_reg_data[SDCC3],
 	}
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	,
-	[SDCC4] = {
-		//.vdd_data = &mmc_vdd_reg_data[SDCC4],
-		.vdd_io_data = &mmc_vdd_io_reg_data[SDCC4],
-
-	}
-#endif
 };
 
 /* SDC1 pad data */
-#if defined(CONFIG_MACH_KS02) || defined(CONFIG_MACH_SERRANO) \
-	|| defined(CONFIG_MACH_GOLDEN) || defined(CONFIG_MACH_LT02) || defined(CONFIG_MACH_CANE) \
-	|| defined(CONFIG_MACH_LOGANRE) || defined(CONFIG_MACH_WILCOX_EUR_LTE)
-//KS02, SERRANO, GOLDEN, LT02
 static struct msm_mmc_pad_drv sdc1_pad_drv_on_cfg[] = {
-	{TLMM_HDRV_SDC1_CLK, GPIO_CFG_6MA},
-	{TLMM_HDRV_SDC1_CMD, GPIO_CFG_6MA},
-	{TLMM_HDRV_SDC1_DATA, GPIO_CFG_6MA}
+	{TLMM_HDRV_SDC1_CLK, GPIO_CFG_16MA},
+	{TLMM_HDRV_SDC1_CMD, GPIO_CFG_10MA},
+	{TLMM_HDRV_SDC1_DATA, GPIO_CFG_10MA}
 };
-#else //others
-static struct msm_mmc_pad_drv sdc1_pad_drv_on_cfg[] = {
-	{TLMM_HDRV_SDC1_CLK, GPIO_CFG_8MA},
-	{TLMM_HDRV_SDC1_CMD, GPIO_CFG_8MA},
-	{TLMM_HDRV_SDC1_DATA, GPIO_CFG_8MA}
-};
-#endif
+
 static struct msm_mmc_pad_drv sdc1_pad_drv_off_cfg[] = {
 	{TLMM_HDRV_SDC1_CLK, GPIO_CFG_2MA},
 	{TLMM_HDRV_SDC1_CMD, GPIO_CFG_2MA},
@@ -175,20 +137,11 @@ static struct msm_mmc_pad_pull sdc1_pad_pull_off_cfg[] = {
 };
 
 /* SDC3 pad data */
-#if !defined(CONFIG_MACH_KS02) && !defined(CONFIG_MACH_SERRANO)
 static struct msm_mmc_pad_drv sdc3_pad_drv_on_cfg[] = {
 	{TLMM_HDRV_SDC3_CLK, GPIO_CFG_8MA},
 	{TLMM_HDRV_SDC3_CMD, GPIO_CFG_8MA},
 	{TLMM_HDRV_SDC3_DATA, GPIO_CFG_8MA}
 };
-#else	// KS02, SERRANO
-static struct msm_mmc_pad_drv sdc3_pad_drv_on_cfg[] = {
-	{TLMM_HDRV_SDC3_CLK, GPIO_CFG_12MA},
-	{TLMM_HDRV_SDC3_CMD, GPIO_CFG_8MA},
-	{TLMM_HDRV_SDC3_DATA, GPIO_CFG_8MA}
-};
-
-#endif
 
 static struct msm_mmc_pad_drv sdc3_pad_drv_off_cfg[] = {
 	{TLMM_HDRV_SDC3_CLK, GPIO_CFG_2MA},
@@ -218,33 +171,6 @@ static struct msm_mmc_pad_pull sdc3_pad_pull_off_cfg[] = {
 	{TLMM_PULL_SDC3_DATA, GPIO_CFG_PULL_DOWN}
 };
 
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-/* SDC4 pad data */
-static struct msm_mmc_pad_drv sdc4_pad_drv_on_cfg[] = {
-	{TLMM_HDRV_SDC4_CLK, GPIO_CFG_8MA},
-	{TLMM_HDRV_SDC4_CMD, GPIO_CFG_8MA},
-	{TLMM_HDRV_SDC4_DATA, GPIO_CFG_8MA}
-};
-
-static struct msm_mmc_pad_drv sdc4_pad_drv_off_cfg[] = {
-	{TLMM_HDRV_SDC4_CLK, GPIO_CFG_2MA},
-	{TLMM_HDRV_SDC4_CMD, GPIO_CFG_2MA},
-	{TLMM_HDRV_SDC4_DATA, GPIO_CFG_2MA}
-};
-
-static struct msm_mmc_pad_pull sdc4_pad_pull_on_cfg[] = {
-	{TLMM_PULL_SDC4_CLK, GPIO_CFG_NO_PULL},
-	{TLMM_PULL_SDC4_CMD, GPIO_CFG_PULL_UP},
-	{TLMM_PULL_SDC4_DATA, GPIO_CFG_PULL_UP}
-};
-
-static struct msm_mmc_pad_pull sdc4_pad_pull_off_cfg[] = {
-	{TLMM_PULL_SDC4_CLK, GPIO_CFG_NO_PULL},
-	{TLMM_PULL_SDC4_CMD, GPIO_CFG_PULL_UP},
-	{TLMM_PULL_SDC4_DATA, GPIO_CFG_PULL_UP}
-};
-#endif
-
 static struct msm_mmc_pad_pull_data mmc_pad_pull_data[MAX_SDCC_CONTROLLER] = {
 	[SDCC1] = {
 		.on = sdc1_pad_pull_on_cfg,
@@ -256,14 +182,6 @@ static struct msm_mmc_pad_pull_data mmc_pad_pull_data[MAX_SDCC_CONTROLLER] = {
 		.off = sdc3_pad_pull_off_cfg,
 		.size = ARRAY_SIZE(sdc3_pad_pull_on_cfg)
 	},
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	[SDCC4] = {
-		.on = sdc4_pad_pull_on_cfg,
-		.off = sdc4_pad_pull_off_cfg,
-		.size = ARRAY_SIZE(sdc4_pad_pull_on_cfg)
-
-	},
-#endif
 };
 
 static struct msm_mmc_pad_drv_data mmc_pad_drv_data[MAX_SDCC_CONTROLLER] = {
@@ -277,13 +195,6 @@ static struct msm_mmc_pad_drv_data mmc_pad_drv_data[MAX_SDCC_CONTROLLER] = {
 		.off = sdc3_pad_drv_off_cfg,
 		.size = ARRAY_SIZE(sdc3_pad_drv_on_cfg)
 	},
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	[SDCC4] = {
-		.on = sdc4_pad_drv_on_cfg,
-		.off = sdc4_pad_drv_off_cfg,
-		.size = ARRAY_SIZE(sdc4_pad_drv_on_cfg)
-	},
-#endif
 };
 
 static struct msm_mmc_pad_data mmc_pad_data[MAX_SDCC_CONTROLLER] = {
@@ -295,32 +206,7 @@ static struct msm_mmc_pad_data mmc_pad_data[MAX_SDCC_CONTROLLER] = {
 		.pull = &mmc_pad_pull_data[SDCC3],
 		.drv = &mmc_pad_drv_data[SDCC3]
 	},
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	[SDCC4] = {
-		.pull = &mmc_pad_pull_data[SDCC4],
-		.drv = &mmc_pad_drv_data[SDCC4]
-
-	},
-#endif
 };
-
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-static struct msm_mmc_gpio sdc4_gpio[] = {
-	{88, "sdc4_clk"},
-	{87, "sdc4_cmd"},
-	{86, "sdc4_dat_0"},
-	{85, "sdc4_dat_1"},
-	{84, "sdc4_dat_2"},
-	{83, "sdc4_dat_3"},
-};
-
-static struct msm_mmc_gpio_data mmc_gpio_data[MAX_SDCC_CONTROLLER] = {
-	[SDCC4] = {
-		.gpio = sdc4_gpio,
-		.size = ARRAY_SIZE(sdc4_gpio),
-	}
-};
-#endif
 
 static struct msm_mmc_pin_data mmc_slot_pin_data[MAX_SDCC_CONTROLLER] = {
 	[SDCC1] = {
@@ -329,12 +215,6 @@ static struct msm_mmc_pin_data mmc_slot_pin_data[MAX_SDCC_CONTROLLER] = {
 	[SDCC3] = {
 		.pad_data = &mmc_pad_data[SDCC3],
 	},
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	[SDCC4] = {
-		.is_gpio = 1,
-		.gpio_data = &mmc_gpio_data[SDCC4],
-	},
-#endif
 };
 
 #define MSM_MPM_PIN_SDC1_DAT1	17
@@ -347,12 +227,6 @@ static unsigned int sdc1_sup_clk_rates[] = {
 #ifdef CONFIG_MMC_MSM_SDC3_SUPPORT
 static unsigned int sdc3_sup_clk_rates[] = {
 	400000, 24000000, 48000000, 96000000, 192000000,
-};
-#endif
-
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-static unsigned int sdc4_sup_clk_rates[] = {
-	400000, 24000000, 48000000
 };
 #endif
 
@@ -371,8 +245,8 @@ static struct mmc_platform_data msm8960_sdc1_data = {
 	.pin_data	= &mmc_slot_pin_data[SDCC1],
 	.mpm_sdiowakeup_int = MSM_MPM_PIN_SDC1_DAT1,
 	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
-	.uhs_caps2	= MMC_CAP2_ADAPT_PACKED | MMC_CAP2_HS200_1_8V_SDR,
-	.packed_write	= MMC_CAP2_PACKED_WR | MMC_CAP2_PACKED_WR_CONTROL,
+	.uhs_caps2	= MMC_CAP2_HS200_1_8V_SDR,
+	//.packed_write	= MMC_CAP2_PACKED_WR | MMC_CAP2_PACKED_WR_CONTROL,
 };
 #endif
 
@@ -393,50 +267,26 @@ static struct mmc_platform_data msm8960_sdc3_data = {
 #endif
 	.vreg_data	= &mmc_slot_vreg_data[SDCC3],
 	.pin_data	= &mmc_slot_pin_data[SDCC3],
-#ifndef CONFIG_MACH_SERRANO
 /*TODO: Insert right replacement for PM8038 */
 #ifndef MSM8930_PHASE_2
 	.status_gpio	= PM8921_GPIO_PM_TO_SYS(26),
 	.status_irq	= PM8921_GPIO_IRQ(PM8921_IRQ_BASE, 26),
 #else
-#ifdef PMIC_GPIO_SD_CARD_DET_N
-        .status_gpio = PM8038_GPIO_PM_TO_SYS(PMIC_GPIO_SD_CARD_DET_N),
-        .status_irq = PM8038_GPIO_IRQ(PM8038_IRQ_BASE, PMIC_GPIO_SD_CARD_DET_N),
-#else
-        .status_gpio    = GPIO_SD_CARD_DET_N,
-        .status_irq     = MSM_GPIO_TO_INT(GPIO_SD_CARD_DET_N),
-#endif
-#endif
+	#if defined(CONFIG_MACH_SERRANO)
+	#else
+	.status_gpio	= GPIO_SD_CARD_DET_N,
+	.status_irq	= MSM_GPIO_TO_INT(GPIO_SD_CARD_DET_N),
+	#endif
 #endif
 	.irq_flags	= IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
 	.is_status_gpio_active_low = true,
 	.xpc_cap	= 1,
-/* Disable UHS feature
+/* disable UHS feature
 	.uhs_caps	= (MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
 			MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_DDR50 |
-			MMC_CAP_UHS_SDR104 | MMC_CAP_MAX_CURRENT_800),
+			MMC_CAP_MAX_CURRENT_800),
 */
 	.mpm_sdiowakeup_int = MSM_MPM_PIN_SDC3_DAT1,
-	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
-};
-#endif
-
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-static struct mmc_platform_data msm8960_sdc4_data = {
-	.ocr_mask		= MMC_VDD_165_195 | MMC_VDD_27_28 | MMC_VDD_28_29,
-	.mmc_bus_width	= MMC_CAP_4_BIT_DATA,
-	.sup_clk_table	= sdc4_sup_clk_rates,
-	.sup_clk_cnt	= ARRAY_SIZE(sdc4_sup_clk_rates),
-	.pin_data	= &mmc_slot_pin_data[SDCC4],
-	.vreg_data	= &mmc_slot_vreg_data[SDCC4],
-	.xpc_cap	   = 1,
-	.uhs_caps	   = (MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
-		MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_DDR50 |
-		MMC_CAP_MAX_CURRENT_600),
-#ifdef CONFIG_BROADCOM_WIFI
-	.status = brcm_wifi_status,
-	.register_status_notify = brcm_wifi_status_register,
-#endif
 	.msm_bus_voting_data = &sps_to_ddr_bus_voting_data,
 };
 #endif
@@ -484,9 +334,5 @@ void __init msm8930_init_mmc(void)
 	}
 
 	msm_add_sdcc(3, &msm8960_sdc3_data);
-#endif
-#ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	/* SDC4: WIFI BCM4334 */
-	msm_add_sdcc(4, &msm8960_sdc4_data);
 #endif
 }
