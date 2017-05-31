@@ -6046,7 +6046,7 @@ static void pm8921_charger_complete(struct device *dev)
 
 	pr_debug("%s start\n", __func__);
 
-	alarm_cancel(&chip->update_alarm);
+	hrtimer_cancel(&chip->update_hrtimer);
 
 	wake_lock(&chip->monitor_wake_lock);
 	schedule_delayed_work(&chip->update_heartbeat_work, 0);
