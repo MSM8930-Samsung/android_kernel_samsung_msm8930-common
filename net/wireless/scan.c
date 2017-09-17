@@ -18,11 +18,6 @@
 #include "nl80211.h"
 #include "wext-compat.h"
 
-/*
-* Scan result expire time related to scan update.
-* samsung model need more time than google for
-* first connect and update ap list.
-*/
 #define IEEE80211_SCAN_RESULT_EXPIRE	(7 * HZ)
 
 void ___cfg80211_scan_done(struct cfg80211_registered_device *rdev, bool leak)

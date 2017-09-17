@@ -1115,7 +1115,7 @@ static void copy_seccomp(struct task_struct *p)
 	 * needed because this new task is not yet running and cannot
 	 * be racing exec.
 	 */
-	BUG_ON(!spin_is_locked(&current->sighand->siglock));
+	assert_spin_locked(&current->sighand->siglock);
 
 	/* Ref-count the new filter user, and assign it. */
 	get_seccomp_filter(current);
@@ -1464,6 +1464,12 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	}
 
 	spin_lock(&current->sighand->siglock);
+
+ 	/*
+	 * Copy seccomp details explicitly here, in case they were changed
+	 * before holding sighand lock.
+	 */
+	copy_seccomp(p);
 
 	/*
 	 * Copy seccomp details explicitly here, in case they were changed

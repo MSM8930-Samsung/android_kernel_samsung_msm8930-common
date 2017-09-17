@@ -1753,6 +1753,12 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	 */
 	bool do_tag_stat = !(info->match & XT_QTAGUID_UID);
 
+	/*
+	 * TODO: unhack how to force just accounting.
+	 * For now we only do tag stats when the uid-owner is not requested
+	 */
+	bool do_tag_stat = !(info->match & XT_QTAGUID_UID);
+
 	if (unlikely(module_passive))
 		return (info->match ^ info->invert) == 0;
 
