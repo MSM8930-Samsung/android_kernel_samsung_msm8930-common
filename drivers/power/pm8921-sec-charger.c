@@ -33,6 +33,7 @@
 #include <linux/debugfs.h>
 #include <linux/slab.h>
 #include <linux/ratelimit.h>
+#include <linux/pm.h>
 
 #include <mach/msm_xo.h>
 #include <mach/msm_hsusb.h>
@@ -354,8 +355,8 @@ struct pm8921_chg_chip {
 	int		cable_exception;
 
 	struct pm8921_sec_battery_data *batt_pdata;
-	struct wake_lock monitor_wake_lock;
-	struct wake_lock cable_wake_lock;
+	struct wakeup_source monitor_wakeup_source;
+	struct wakeup_source cable_wakeup_source;
 #endif
 };
 
@@ -2261,8 +2262,8 @@ static int get_prop_batt_status(struct pm8921_chg_chip *chip)
 							chip->
 							charging_term_time);
 					}
-					wake_lock_timeout(
-						&chip->monitor_wake_lock, 5*HZ);
+					__pm_wakeup_event(
+						&chip->monitor_wakeup_source, 5000); /* 5secs */
 					pr_info("%s: Charging Terminated\n",
 						__func__);
 					chip->ui_term_cnt++;
@@ -3625,7 +3626,7 @@ static void handle_cable_insertion_removal(struct pm8921_chg_chip *chip)
 	}
 
 	hrtimer_cancel(&chip->event_termination_hrtimer);
-	wake_lock(&chip->monitor_wake_lock);
+	__pm_stay_awake(&chip->monitor_wakeup_source);
 	schedule_delayed_work(&chip->update_heartbeat_work, 0);
 
 	power_supply_changed(&chip->usb_psy);
@@ -3715,7 +3716,7 @@ static void handle_cable_insertion_removal_for_wq(struct pm8921_chg_chip *chip)
 	}
 
 	hrtimer_cancel(&chip->event_termination_hrtimer);
-	wake_lock(&chip->monitor_wake_lock);
+	__pm_stay_awake(&chip->monitor_wakeup_source);
 	schedule_delayed_work(&chip->update_heartbeat_work, 0);
 
 	power_supply_changed(&chip->usb_psy);
@@ -4070,7 +4071,7 @@ static irqreturn_t usbin_valid_irq_handler(int irq, void *data)
 	struct pm8921_chg_chip *chip = data;
 
 	pr_info("%s: activated =====================\n", __func__);
-	wake_lock_timeout(&chip->cable_wake_lock, 5*HZ);
+	__pm_wakeup_event(&chip->cable_wakeup_source, 5000); /* 5secs */
 
 #if 0
 	if (usb_target_ma)
@@ -4632,7 +4633,7 @@ enum hrtimer_restart pm_update_alarm(struct hrtimer *timer)
 				struct pm8921_chg_chip, update_hrtimer);
 
 	if (!chip->is_in_sleep) {
-		wake_lock(&chip->monitor_wake_lock);
+		__pm_stay_awake(&chip->monitor_wakeup_source);
 		schedule_delayed_work(&chip->update_heartbeat_work, 0);
 	}
 	
@@ -4714,8 +4715,8 @@ static bool pm_abs_time_management(struct pm8921_chg_chip *chip)
 			pr_info("%s: Recharging Timer Expired\n", __func__);
 			chip->is_recharging = false;
 			chip->is_chgtime_expired = true;
-			wake_lock_timeout(
-						&chip->cable_wake_lock, 90*HZ);
+			__pm_wakeup_event(
+						&chip->cable_wakeup_source, 90000); /* 90secs */
 			pm8917_disable_charging(chip);
 
 			return false;
@@ -4724,8 +4725,8 @@ static bool pm_abs_time_management(struct pm8921_chg_chip *chip)
 				chip->batt_pdata->charging_total_time)) {
 			pr_info("%s: Charging Timer Expired\n", __func__);
 			chip->is_chgtime_expired = true;
-			wake_lock_timeout(
-						&chip->cable_wake_lock, 90*HZ);
+			__pm_wakeup_event(
+						&chip->cable_wakeup_source, 90000); /* 90secs */
 
 			pm8917_disable_charging(chip);
 			return false;
@@ -4822,7 +4823,7 @@ static void update_heartbeat(struct work_struct *work)
 		pm_program_alarm(chip, chip->update_time / 1000);
 	}
 #endif
-	wake_unlock(&chip->monitor_wake_lock);
+	__pm_relax(&chip->monitor_wakeup_source);
 }
 #define VDD_LOOP_ACTIVE_BIT	BIT(3)
 #define VDD_MAX_INCREASE_MV	400
@@ -6048,7 +6049,7 @@ static void pm8921_charger_complete(struct device *dev)
 
 	hrtimer_cancel(&chip->update_hrtimer);
 
-	wake_lock(&chip->monitor_wake_lock);
+	__pm_stay_awake(&chip->monitor_wakeup_source);
 	schedule_delayed_work(&chip->update_heartbeat_work, 0);
 
 	pr_debug("%s end\n", __func__);
@@ -6193,10 +6194,8 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	chip->boot_completed = false;
 	chip->cable_exception = CABLE_TYPE_NONE;
 
-	wake_lock_init(&chip->monitor_wake_lock, WAKE_LOCK_SUSPEND,
-		       "sec-charger-monitor");
-	wake_lock_init(&chip->cable_wake_lock, WAKE_LOCK_SUSPEND,
-		       "sec-charger-cable");
+	wakeup_source_init(&chip->monitor_wakeup_source, "sec-charger-monitor");
+	wakeup_source_init(&chip->cable_wakeup_source, "sec-charger-cable");
 
 	hrtimer_init(&chip->event_termination_hrtimer,
  			CLOCK_BOOTTIME,
@@ -6361,7 +6360,7 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 		INIT_DELAYED_WORK(&chip->update_heartbeat_work,
 							update_heartbeat);
 
-		wake_unlock(&chip->monitor_wake_lock);
+		__pm_relax(&chip->monitor_wakeup_source);
 		schedule_delayed_work(&chip->update_heartbeat_work, 0);
 	}
 
@@ -6377,7 +6376,7 @@ unregister_fg:
 unregister_usb:
 	power_supply_unregister(&chip->usb_psy);
 free_chip:
-	wake_lock_destroy(&chip->monitor_wake_lock);
+	wakeup_source_trash(&chip->monitor_wakeup_source);
 	kfree(chip);
 	return rc;
 }
@@ -6391,7 +6390,7 @@ static int __devexit pm8921_charger_remove(struct platform_device *pdev)
 	power_supply_unregister(&chip->usb_psy);
 	power_supply_unregister(&chip->batt_psy);
 
-	wake_lock_destroy(&chip->monitor_wake_lock);
+	wakeup_source_trash(&chip->monitor_wakeup_source);
 
 	free_irqs(chip);
 	platform_set_drvdata(pdev, NULL);
