@@ -70,7 +70,7 @@ static int probe_done;
 struct hscd_i2c_data {
 	struct i2c_client *this_client;
 	struct input_dev *input_dev;
-	struct early_suspend early_suspend;
+	//struct early_suspend early_suspend;
 };
 struct hscd_i2c_data *hscd_data;
 
