@@ -113,6 +113,7 @@ struct mdp4_overlay_ctrl {
 };
 
 static DEFINE_MUTEX(iommu_mutex);
+static DEFINE_MUTEX(perf_mutex);
 static struct mdp4_overlay_ctrl *ctrl = &mdp4_overlay_db;
 
 struct mdp4_overlay_perf {
@@ -129,8 +130,8 @@ struct mdp4_overlay_perf {
 	u32 pipe_cnt;
 };
 
-struct mdp4_overlay_perf perf_request;
-struct mdp4_overlay_perf perf_current;
+static struct mdp4_overlay_perf perf_request;
+static struct mdp4_overlay_perf perf_current;
 
 void  mdp4_overlay_free_base_pipe(struct msm_fb_data_type *mfd)
 {
@@ -1962,7 +1963,6 @@ void mdp4_mixer_stage_commit(int mixer)
 	mdp_clk_ctrl(0);
 }
 
-
 void mdp4_mixer_stage_up(struct mdp4_overlay_pipe *pipe, int commit)
 {
 	struct mdp4_overlay_pipe *pp;
@@ -3191,7 +3191,7 @@ int mdp4_calc_blt_mdp_bw(struct msm_fb_data_type *mfd,
 		pr_err("%s: mfd is null!\n", __func__);
 		return ret;
 	}
-
+	mutex_lock(&perf_mutex);
 	bpp = BLT_BPP;
 	fps = mdp_get_panel_framerate(mfd);
 
@@ -3216,6 +3216,7 @@ int mdp4_calc_blt_mdp_bw(struct msm_fb_data_type *mfd,
 		 perf_req->mdp_ov_ab_bw[pipe->mixer_num],
 		 perf_req->mdp_ov_ib_bw[pipe->mixer_num]);
 
+	mutex_unlock(&perf_mutex);
 	return 0;
 }
 
@@ -3294,6 +3295,7 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 		return ret;
 	}
 
+	mutex_lock(&perf_mutex);
 	pipe = ctrl->plist;
 
 	for (i = 0; i < MDP4_MIXER_MAX; i++)
@@ -3301,8 +3303,10 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 
 	for (i = 0; i < OVERLAY_PIPE_MAX; i++, pipe++) {
 
-		if (!pipe)
+		if (!pipe) {
+			mutex_unlock(&perf_mutex);
 			return ret;
+		}
 
 		if (!pipe->pipe_used)
 			continue;
@@ -3458,6 +3462,7 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd)
 		 perf_req->use_ov_blt[0],
 		 perf_req->use_ov_blt[1]);
 
+	mutex_unlock(&perf_mutex);
 	return 0;
 }
 
@@ -3491,6 +3496,7 @@ void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd,
 		 perf_cur->mdp_clk_rate,
 		 flag);
 
+	mutex_lock(&perf_mutex);
 	if (!mdp4_extn_disp)
 		perf_cur->use_ov_blt[1] = 0;
 
@@ -3591,6 +3597,8 @@ void mdp4_overlay_mdp_perf_upd(struct msm_fb_data_type *mfd,
 			perf_cur->use_ov_blt[0] = perf_req->use_ov_blt[0];
 		}
 	}
+
+	mutex_unlock(&perf_mutex);
 	return;
 }
 
@@ -4194,9 +4202,9 @@ int mdp4_overlay_commit(struct fb_info *info)
 
 	if (mfd == NULL)
 		return -ENODEV;
-
-	if (mdp_fb_is_power_off(mfd))
+	if (!mfd->panel_power_on) /* suspended */
 		return -EINVAL;
+	}
 
 	mixer = mfd->panel_info.pdest;	/* DISPLAY_1 or DISPLAY_2 */
 
@@ -4229,7 +4237,7 @@ int mdp4_overlay_commit(struct fb_info *info)
 		break;
 	}
 	msm_fb_signal_timeline(mfd);
-
+	
 	mdp4_overlay_mdp_perf_upd(mfd, 0);
 	mdp4_unmap_sec_resource(mfd);
 	mutex_unlock(&mfd->dma->ov_mutex);
